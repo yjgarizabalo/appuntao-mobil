@@ -189,7 +189,12 @@ export const useDialog = () => {
     (error: AppError, confirmLabel = 'Entendido') => {
       setState({
         visible: true,
-        tone: error.code === 'VALIDATION' ? 'warning' : 'danger',
+        // Un dato mal escrito o un "espera un minuto" no son fallos graves:
+        // se pintan en ámbar, no en rojo.
+        tone:
+          error.code === 'VALIDATION' || error.code === 'RATE_LIMITED'
+            ? 'warning'
+            : 'danger',
         title: error.title,
         message: error.message,
         confirmLabel,
