@@ -35,11 +35,13 @@ import {
   getRefreshToken,
   hydrateTokens,
   onSessionExpired,
+  onSessionRenewed,
   setTokens,
 } from '@/core/http/tokenStore';
 import { createLogger } from '@/core/logger';
 import { clearCache } from '@/core/storage/cache';
 import { StorageKeys, getJson, removeItems, setJson } from '@/core/storage/storage';
+import { mapUser } from '@/domain/mappers';
 import type { User } from '@/domain/models';
 import {
   type LoginCredentials,
@@ -128,6 +130,24 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         void endSession();
       }),
     [endSession],
+  );
+
+  /* ── El refresh trae el usuario al día ─────────────────────────────────── */
+
+  /**
+   * El backend devuelve el usuario en cada renovación, y hay que hacerle caso:
+   * desde que el correo, el celular y el documento solo los cambia un
+   * administrador, esta es la única vía por la que una corrección de soporte
+   * llega al dispositivo sin obligar a cerrar y abrir sesión.
+   */
+  useEffect(
+    () =>
+      onSessionRenewed((rawUser) => {
+        const fresh = mapUser(rawUser);
+        setUser(fresh);
+        void setJson(StorageKeys.user, fresh);
+      }),
+    [],
   );
 
   const login = useCallback(async (credentials: LoginCredentials) => {

@@ -39,6 +39,7 @@ import {
   getRefreshToken,
   isAccessTokenExpiring,
   notifySessionExpired,
+  notifySessionRenewed,
   setTokens,
 } from './tokenStore';
 import { createLogger } from '@/core/logger';
@@ -117,6 +118,8 @@ interface RefreshResponse {
   accessToken?: string;
   refreshToken?: string;
   accessTokenExpiresIn?: string | number;
+  /** El backend devuelve el usuario al día en cada renovación. */
+  user?: unknown;
 }
 
 const requestNewAccessToken = async (): Promise<string> => {
@@ -163,6 +166,17 @@ const requestNewAccessToken = async (): Promise<string> => {
     refreshToken: response.data.refreshToken ?? refreshToken,
     accessTokenExpiresAt: expiresAtFrom(response.data.accessTokenExpiresIn),
   });
+
+  /**
+   * El servidor manda el usuario al día en cada renovación y aquí se pasa a
+   * quien sepa interpretarlo (el `SessionProvider`). Se exige que traiga un
+   * `id` para no pisar el usuario guardado con un objeto vacío si algún día
+   * la respuesta cambia de forma.
+   */
+  const rawUser = response.data.user;
+  if (rawUser && typeof rawUser === 'object' && 'id' in rawUser) {
+    notifySessionRenewed(rawUser);
+  }
 
   log.info('Sesión renovada');
   return accessToken;

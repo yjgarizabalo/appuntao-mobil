@@ -37,10 +37,16 @@ export interface SessionTokens {
 const EXPIRY_SKEW_MS = 60_000;
 
 type SessionExpiredListener = () => void;
+/**
+ * El backend devuelve el usuario en cada renovación. Viaja como `unknown`
+ * porque `core` no conoce el modelo de dominio: quien escucha lo traduce.
+ */
+type SessionRenewedListener = (rawUser: unknown) => void;
 
 let cache: SessionTokens | null = null;
 let hydrated = false;
 const listeners = new Set<SessionExpiredListener>();
+const renewalListeners = new Set<SessionRenewedListener>();
 
 /** Carga los tokens persistidos. Idempotente: solo lee del disco una vez. */
 export const hydrateTokens = async (): Promise<SessionTokens | null> => {
@@ -143,4 +149,21 @@ export const onSessionExpired = (listener: SessionExpiredListener): (() => void)
 /** Lo dispara el interceptor HTTP cuando el refresh falla con un 401. */
 export const notifySessionExpired = (): void => {
   listeners.forEach((listener) => listener());
+};
+
+/**
+ * Se suscribe a "la sesión se renovó y el servidor mandó el usuario al día".
+ *
+ * Importa desde que el correo, el celular y el documento solo los cambia un
+ * administrador: sin esto, una corrección hecha por soporte no aparecería en
+ * el dispositivo hasta el siguiente inicio de sesión.
+ */
+export const onSessionRenewed = (listener: SessionRenewedListener): (() => void) => {
+  renewalListeners.add(listener);
+  return () => renewalListeners.delete(listener);
+};
+
+/** Lo dispara el interceptor HTTP tras una renovación con éxito. */
+export const notifySessionRenewed = (rawUser: unknown): void => {
+  renewalListeners.forEach((listener) => listener(rawUser));
 };
