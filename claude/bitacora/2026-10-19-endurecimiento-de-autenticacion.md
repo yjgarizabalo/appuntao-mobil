@@ -135,6 +135,42 @@ que el servidor, aunque el documento pida desplegarlos juntos.
 
 ---
 
+## Cotejo contra el código del backend
+
+Terminada la implementación se leyó la rama `fix/auth-hardening` del backend (commit
+`6d3a062`, idéntica a `origin/`) y se contrastó punto por punto. El documento describe el
+contrato con fidelidad; **no hubo que corregir nada de lo implementado**. Lo que el código
+añade sobre el documento y conviene tener presente:
+
+| Detalle del backend | Qué significa para la app |
+| --- | --- |
+| `ValidationPipe` global con `forbidNonWhitelisted: true` | Un campo de más en el body es **400**, no se ignora. Los cuerpos de login, registro, logout y perfil se enviaron exactos. |
+| `x-device-id` se compara solo `if (deviceId !== undefined)` | Mandar el header es opcional de verdad. Si una petición saliera antes de que `hydrateDeviceId()` termine, la renovación igual funciona. |
+| La rotación copia el `deviceId` del token anterior, no el del header | El vínculo con el aparato se conserva aunque un refresh salga sin header. |
+| `REFRESH_REUSE_GRACE_MS = 30_000` | Durante 30 s, reutilizar un token recién rotado da «Refresh token ya utilizado» **sin** cerrar la sesión. Pasado ese margen, borra toda la familia de tokens. La app cierra sesión en los dos casos, como pide el documento. |
+| `jwt.expiresIn` sale de `JWT_EXPIRES_IN`, con `'1d'` por defecto | El documento dice 15 m, pero el valor real depende del entorno. `expiresAtFrom()` entiende `ms`, `s`, `m`, `h` y `d`; con cualquier otro formato devuelve `null` y la renovación vuelve a ser reactiva, que es el comportamiento seguro. |
+| El throttler es `ttl: 60_000, limit: 5`, con la IP **y** el identificador en la llave | Coincide con el documento. El mensaje del 429 lo pone el backend y la app lo muestra tal cual. |
+| `changePassword` borra **todos** los refresh tokens en la misma transacción | Confirma que había que salir al login, no volver atrás. |
+| `ADMIN_ONLY_FIELDS` = `email`, `phone`, `documentType`, `documentNumber`, `role` | El `PATCH` del perfil solo manda `firstName` y `lastName`: ninguno está en la lista. |
+| El JWT solo lleva `{ sub, role }` | Confirmado que no hay nada que leer del token; la app nunca lo decodificó. |
+
+### Lo que sí hubo que corregir
+
+**El refresh devuelve el usuario al día y la app lo estaba tirando.** `TokenResponseDto` es
+el mismo para login y refresh, así que cada renovación trae el `user` actualizado. No tenía
+consecuencias antes, pero ahora sí: desde que el correo, el celular y el documento solo los
+cambia un administrador, el refresh es **la única vía** por la que una corrección hecha por
+soporte llega al dispositivo sin obligar a cerrar y abrir sesión. El documento ya lo decía
+en su tabla «Qué guardar» (`user` … cambia «en login y refresh») y se había pasado por alto.
+
+Se resolvió con un aviso propio —`onSessionRenewed` en `tokenStore`, hermano del
+`onSessionExpired` que ya existía— porque `core` no puede importar de `domain`: el
+interceptor emite el objeto crudo y el `SessionProvider` lo pasa por `mapUser`. Solo se
+emite si la respuesta trae un objeto con `id`, para no pisar el usuario guardado con uno
+vacío si la forma cambiara.
+
+---
+
 ## Qué se verificó y qué no
 
 **Verificado:**
@@ -142,10 +178,12 @@ que el servidor, aunque el documento pida desplegarlos juntos.
 - `npm run typecheck` — 0 errores.
 - `npm run lint` — 0 problemas.
 - `npx expo export --platform android --platform ios` — los dos bundles compilan.
+- El contrato, **leyendo el código** del backend en `fix/auth-hardening` (ver arriba).
 
-**No verificado:** nada de esto se probó contra el backend, porque la rama
+**No verificado:** nada de esto se **ejecutó** contra el backend, porque la rama
 `fix/auth-hardening` todavía no está desplegada en ningún entorno alcanzable desde la app.
-En concreto, falta comprobar con el servidor delante:
+Leer el código prueba que los nombres, los headers y los códigos coinciden; no prueba que
+el ida y vuelta funcione. Falta comprobar con el servidor delante:
 
 - que el login con `deviceId` responde 201 y que entrar en un segundo dispositivo no cierra
   la sesión del primero;
