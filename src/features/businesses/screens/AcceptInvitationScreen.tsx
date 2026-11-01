@@ -1,13 +1,22 @@
 /**
- * Unirse a un negocio con un código de invitación.
+ * Canjear un código de invitación.
  *
  * Es la contraparte de "Invitar": la persona que recibió el correo (o el código
- * a mano) lo teclea aquí para entrar al negocio. Se eligió el código dentro de
- * la app en vez de un deep link porque es lo que el backend ya soporta sin
- * cambios y funciona en Expo Go (un deep link `https` exigiría un dev build).
+ * a mano) lo teclea aquí. Se eligió el código dentro de la app en vez de un
+ * deep link porque es lo que el backend ya soporta sin cambios y funciona en
+ * Expo Go (un deep link `https` exigiría un dev build).
  *
- * El flujo valida el código con `GET /invitations/:code` para mostrar el rol
- * antes de confirmar, y solo entonces lo acepta.
+ * Una sola pantalla atiende los **dos** tipos de invitación que emite el
+ * backend, porque para quien lo recibe un código es un código y no tiene por
+ * qué saber de qué clase es:
+ *
+ *  - `BUSINESS_USER` → entra al equipo del negocio con un rol y queda en modo
+ *    tendero;
+ *  - `DEBTOR` → vincula su cuenta a la ficha de cliente que la tienda ya tenía
+ *    (`Debtor.userId`) y queda en modo cliente, viendo lo que debe.
+ *
+ * El flujo valida el código con `GET /invitations/:code` para poder explicar
+ * qué va a pasar antes de confirmar, y solo entonces lo acepta.
  */
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
@@ -19,6 +28,7 @@ import { required } from '@/core/utils/validation';
 import { BUSINESS_ROLE_LABEL } from '@/domain/constants';
 import { invitationApi } from '@/features/businesses/api/invitationApi';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { useAppMode } from '@/features/client/state/AppModeProvider';
 import {
   AppBar,
   Button,
@@ -34,10 +44,12 @@ import { theme } from '@/theme';
 
 export const AcceptInvitationScreen = () => {
   const { refresh: refreshBusinesses, selectBusiness } = useBusinesses();
+  const { setMode, refreshAccounts } = useAppMode();
   const dialog = useDialog();
   const toast = useToast();
 
-  const acceptCode = async (code: string, businessId: string | null) => {
+  /** `BUSINESS_USER`: el usuario entra al equipo y sigue como tendero. */
+  const joinTeam = async (code: string, businessId: string | null) => {
     try {
       await invitationApi.accept(code);
       await refreshBusinesses();
@@ -46,6 +58,23 @@ export const AcceptInvitationScreen = () => {
       if (businessId) selectBusiness(businessId);
       toast.success('¡Ya eres parte del equipo!');
       router.replace(routes.tabs.businesses);
+    } catch (caught) {
+      dialog.showError(toAppError(caught));
+    }
+  };
+
+  /**
+   * `DEBTOR`: el usuario queda vinculado a la ficha que la tienda ya tenía y
+   * se le deja directamente en el modo cliente. Cambiar de modo aquí no es
+   * presuntuoso: acaba de pedir explícitamente ver su cuenta en esa tienda.
+   */
+  const linkAsClient = async (code: string) => {
+    try {
+      await invitationApi.accept(code);
+      await refreshAccounts();
+      setMode('client');
+      toast.success('¡Listo! Ya puedes ver tu cuenta en esa tienda.');
+      router.replace(routes.clientMode.wallet);
     } catch (caught) {
       dialog.showError(toAppError(caught));
     }
@@ -61,8 +90,15 @@ export const AcceptInvitationScreen = () => {
       try {
         const invitation = await invitationApi.getByCode(code);
 
-        if (invitation.type !== 'BUSINESS_USER') {
-          form.setFieldError('code', 'Este código no sirve para unirte a un negocio');
+        if (invitation.type === 'DEBTOR') {
+          dialog.confirm({
+            tone: 'info',
+            title: '¿Vincularte a esta tienda?',
+            message:
+              'Vas a ver lo que debes y tu historial de abonos. La tienda sigue siendo quien registra los vales y los pagos.',
+            confirmLabel: 'Vincularme',
+            onConfirm: () => void linkAsClient(invitation.code),
+          });
           return;
         }
 
@@ -72,7 +108,7 @@ export const AcceptInvitationScreen = () => {
           title: '¿Unirte al negocio?',
           message: `Entrarás como ${roleLabel}. Podrás empezar a trabajar de una vez.`,
           confirmLabel: 'Unirme',
-          onConfirm: () => void acceptCode(invitation.code, invitation.businessId ?? null),
+          onConfirm: () => void joinTeam(invitation.code, invitation.businessId ?? null),
         });
       } catch (caught) {
         const error = toAppError(caught);
@@ -118,7 +154,8 @@ export const AcceptInvitationScreen = () => {
         Tengo un código
       </Text>
       <Text variant="body" color="textMuted" style={styles.subtitle}>
-        Escribe el código que te compartieron para unirte a un negocio como parte de su equipo.
+        Escribe el código que te compartieron para unirte a un negocio o para vincularte a
+        una tienda donde te fían.
       </Text>
 
       <TextField

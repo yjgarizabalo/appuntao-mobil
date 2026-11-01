@@ -29,6 +29,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useConnectivity } from '@/core/connectivity';
+import { OFFLINE_BANNER_HEIGHT } from './OfflineBanner';
+
 import { haptics } from '@/core/haptics';
 import { Text } from './Text';
 import { theme } from '@/theme';
@@ -74,6 +77,7 @@ const TONES: Record<
 
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const insets = useSafeAreaInsets();
+  const { isOffline } = useConnectivity();
   const [toast, setToast] = useState<Required<ToastOptions> | null>(null);
   const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -131,7 +135,20 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
 
       {/* `pointerEvents="box-none"` deja pasar los toques a la pantalla que
           está debajo, salvo en el propio toast. */}
-      <View style={[styles.host, { top: insets.top + theme.spacing.sm }]} pointerEvents="box-none">
+      <View
+        style={[
+          styles.host,
+          {
+            // Si la píldora de "sin conexión" está arriba, el toast baja para
+            // no quedar encima: los dos viven en la misma esquina.
+            top:
+              insets.top +
+              theme.spacing.sm +
+              (isOffline ? OFFLINE_BANNER_HEIGHT + theme.spacing.xs : 0),
+          },
+        ]}
+        pointerEvents="box-none"
+      >
         {toast ? (
           <Animated.View style={animatedStyle}>
             <Pressable

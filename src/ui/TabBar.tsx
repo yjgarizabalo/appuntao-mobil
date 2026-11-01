@@ -28,10 +28,15 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 /** Iconos por nombre de ruta: relleno cuando está activa, contorno cuando no. */
 const ICONS: Record<string, { active: IconName; inactive: IconName }> = {
+  /* Modo tendero */
   home: { active: 'home', inactive: 'home-outline' },
   businesses: { active: 'storefront', inactive: 'storefront-outline' },
   clients: { active: 'people', inactive: 'people-outline' },
   profile: { active: 'person-circle', inactive: 'person-circle-outline' },
+  /* Modo cliente */
+  wallet: { active: 'wallet', inactive: 'wallet-outline' },
+  movements: { active: 'swap-vertical', inactive: 'swap-vertical-outline' },
+  me: { active: 'person-circle', inactive: 'person-circle-outline' },
 };
 
 export const TabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {

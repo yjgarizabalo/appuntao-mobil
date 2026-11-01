@@ -12,6 +12,11 @@
  *     token muerto lanzando 401 en cada pantalla.
  *  3. `logout` siempre limpia el estado local, incluso si la llamada al
  *     backend falla (el usuario pidió salir: hay que sacarlo).
+ *
+ * Con la sesión por dispositivo se suma un cuarto punto: al arrancar también
+ * se carga el `deviceId` de la instalación, que el login necesita sí o sí y
+ * el refresh usa para probar que renueva desde el mismo aparato. Ese valor
+ * **no** se borra al cerrar sesión: identifica el teléfono, no a la persona.
  */
 import {
   type ReactNode,
@@ -23,20 +28,24 @@ import {
   useState,
 } from 'react';
 
+import { hydrateDeviceId } from '@/core/device/deviceIdentity';
 import { AppError, toAppError } from '@/core/errors/AppError';
 import {
   clearTokens,
   getRefreshToken,
   hydrateTokens,
   onSessionExpired,
+  onSessionRenewed,
   setTokens,
 } from '@/core/http/tokenStore';
 import { createLogger } from '@/core/logger';
 import { clearCache } from '@/core/storage/cache';
 import { StorageKeys, getJson, removeItems, setJson } from '@/core/storage/storage';
+import { mapUser } from '@/domain/mappers';
 import type { User } from '@/domain/models';
 import {
   type LoginCredentials,
+  type LogoutOptions,
   type RegisterPayload,
   authApi,
 } from '@/features/auth/api/authApi';
@@ -51,7 +60,13 @@ interface SessionContextValue {
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<User>;
-  logout: () => Promise<void>;
+  /** Cierra sesión avisando al backend. Con `allDevices` cierra todas. */
+  logout: (options?: LogoutOptions) => Promise<void>;
+  /**
+   * Cierra la sesión **solo en local**, sin llamar al backend. Para cuando el
+   * servidor ya la invalidó por su cuenta: hoy, al cambiar la contraseña.
+   */
+  endSession: () => Promise<void>;
   /** Actualiza el usuario en memoria y en disco (tras editar el perfil). */
   patchUser: (changes: Partial<User>) => Promise<void>;
 }
@@ -71,6 +86,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       const [tokens, storedUser] = await Promise.all([
         hydrateTokens(),
         getJson<User>(StorageKeys.user),
+        // No se espera su valor aquí, pero sí que esté listo antes de que
+        // alguien intente renovar la sesión o iniciar una nueva.
+        hydrateDeviceId(),
       ]);
 
       if (cancelled) return;
@@ -94,23 +112,43 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  /* ── Acciones ──────────────────────────────────────────────────────────── */
+
+  /** Deja el dispositivo sin sesión. No habla con el backend. */
+  const endSession = useCallback(async () => {
+    await clearSession();
+    setUser(null);
+    setStatus('unauthenticated');
+  }, []);
+
   /* ── Cierre de sesión forzado por el interceptor HTTP ──────────────────── */
 
   useEffect(
     () =>
       onSessionExpired(() => {
         log.warn('Sesión expirada: se cierra la sesión local');
-        setUser(null);
-        setStatus('unauthenticated');
-        void removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
-        // La caché guarda datos de negocio: no debe sobrevivir a un cierre de
-        // sesión y quedar visible para la siguiente cuenta del dispositivo.
-        void clearCache();
+        void endSession();
+      }),
+    [endSession],
+  );
+
+  /* ── El refresh trae el usuario al día ─────────────────────────────────── */
+
+  /**
+   * El backend devuelve el usuario en cada renovación, y hay que hacerle caso:
+   * desde que el correo, el celular y el documento solo los cambia un
+   * administrador, esta es la única vía por la que una corrección de soporte
+   * llega al dispositivo sin obligar a cerrar y abrir sesión.
+   */
+  useEffect(
+    () =>
+      onSessionRenewed((rawUser) => {
+        const fresh = mapUser(rawUser);
+        setUser(fresh);
+        void setJson(StorageKeys.user, fresh);
       }),
     [],
   );
-
-  /* ── Acciones ──────────────────────────────────────────────────────────── */
 
   const login = useCallback(async (credentials: LoginCredentials) => {
     const session = await authApi.login(credentials);
@@ -124,6 +162,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     await setTokens({
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
+      accessTokenExpiresAt: session.accessTokenExpiresAt,
     });
     await setJson(StorageKeys.user, session.user);
 
@@ -136,24 +175,27 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  const logout = useCallback(async () => {
-    const refreshToken = getRefreshToken();
+  const logout = useCallback(
+    async (options: LogoutOptions = {}) => {
+      const refreshToken = getRefreshToken();
 
-    if (refreshToken) {
-      try {
-        await authApi.logout(refreshToken);
-      } catch (caught) {
-        // Que el backend no pueda invalidar el token no debe impedir salir.
-        log.warn('El logout remoto falló; se cierra igualmente en local', {
-          code: toAppError(caught).code,
-        });
+      if (refreshToken) {
+        try {
+          await authApi.logout(refreshToken, options);
+        } catch (caught) {
+          // Que el backend no pueda invalidar el token no debe impedir salir.
+          // Con `allDevices` incluso puede responder 401 si el token ya murió;
+          // da igual, el usuario pidió salir de este dispositivo.
+          log.warn('El logout remoto falló; se cierra igualmente en local', {
+            code: toAppError(caught).code,
+          });
+        }
       }
-    }
 
-    await clearSession();
-    setUser(null);
-    setStatus('unauthenticated');
-  }, []);
+      await endSession();
+    },
+    [endSession],
+  );
 
   const patchUser = useCallback(
     async (changes: Partial<User>) => {
@@ -172,18 +214,25 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       login,
       register,
       logout,
+      endSession,
       patchUser,
     }),
-    [status, user, login, register, logout, patchUser],
+    [status, user, login, register, logout, endSession, patchUser],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 };
 
-/** Borra tokens, datos locales de la sesión y la caché de datos de negocio. */
+/**
+ * Borra tokens, datos locales de la sesión y la caché de datos de negocio.
+ *
+ * `StorageKeys.deviceId` queda intacto a propósito: es la identidad del
+ * aparato ante el backend y regenerarlo en cada salida dejaría sesiones
+ * huérfanas del lado del servidor.
+ */
 const clearSession = async () => {
   await clearTokens();
-  await removeItems([StorageKeys.user, StorageKeys.activeBusinessId]);
+  await removeItems([StorageKeys.user, StorageKeys.activeBusinessId, StorageKeys.appMode]);
   // La caché offline pertenece al usuario que sale: se limpia para que la
   // siguiente cuenta que entre en el dispositivo no vea datos ajenos.
   await clearCache();

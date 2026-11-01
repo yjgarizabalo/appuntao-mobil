@@ -32,6 +32,7 @@ import Animated, {
 
 import { routes } from '@/core/navigation/routes';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { useAppMode } from '@/features/client/state/AppModeProvider';
 import { Text } from '@/ui';
 import { theme } from '@/theme';
 
@@ -43,6 +44,7 @@ const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export const EntryScreen = () => {
   const { status } = useSession();
+  const { mode, isReady: isModeReady } = useAppMode();
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
 
   useEffect(() => {
@@ -50,11 +52,18 @@ export const EntryScreen = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const ready = status !== 'loading' && minTimeElapsed;
+  // Se espera también al modo guardado: redirigir antes mandaría siempre al
+  // inicio del tendero y, un instante después, saltaría al del cliente. Ese
+  // parpadeo es justo lo que este splash existe para evitar.
+  const ready = status !== 'loading' && isModeReady && minTimeElapsed;
 
   if (!ready) return <BrandSplash />;
 
-  return <Redirect href={status === 'authenticated' ? routes.tabs.home : routes.auth.login} />;
+  if (status !== 'authenticated') return <Redirect href={routes.auth.login} />;
+
+  return (
+    <Redirect href={mode === 'client' ? routes.clientMode.wallet : routes.tabs.home} />
+  );
 };
 
 const BrandSplash = () => {

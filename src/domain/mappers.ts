@@ -22,6 +22,7 @@ import {
 import type {
   Business,
   BusinessSummary,
+  ClientAccount,
   Debt,
   Debtor,
   Invitation,
@@ -256,5 +257,27 @@ export const mapDebt = (raw: unknown, businessId = ''): Debt => {
     status: asDebtStatus(data.status),
     createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
     payments,
+  };
+};
+
+/* ── El usuario como cliente ──────────────────────────────────────────────── */
+
+/**
+ * Una entrada de `clientBusinesses` de `GET /users/me/dashboard`.
+ *
+ * Ojo con los ids: el `id` de la raíz es el de la **ficha de deudor**, no el
+ * del negocio; ese viene anidado en `business`. Confundirlos manda el
+ * `debtorId` como `x-business-id` y el backend responde 404.
+ */
+export const mapClientAccount = (raw: unknown): ClientAccount => {
+  const data = (raw ?? {}) as Raw;
+  const business = (data.business ?? {}) as Raw;
+
+  return {
+    debtorId: asString(data.id),
+    debtorName: asString(data.name, 'Tu cuenta'),
+    businessId: asString(business.id),
+    businessName: asString(business.name, 'Tienda'),
+    phone: data.phone == null ? undefined : asString(data.phone),
   };
 };

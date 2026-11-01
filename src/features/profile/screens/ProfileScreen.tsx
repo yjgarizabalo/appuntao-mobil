@@ -23,6 +23,8 @@ import { displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { RoleBadge } from '@/features/businesses/components/RoleBadge';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
+import { useAppMode } from '@/features/client/state/AppModeProvider';
 import {
   Avatar,
   Badge,
@@ -44,23 +46,34 @@ export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useSession();
   const { businesses, activeBusiness, activeRole } = useBusinesses();
+  const { mode, accounts, hasConfirmedNoAccounts } = useAppMode();
   const dialog = useDialog();
   const toast = useToast();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const fullName = displayName(user);
+  const isClientMode = mode === 'client';
 
-  const handleLogout = () => {
+  /**
+   * Salir de este dispositivo o de todos.
+   *
+   * El backend mantiene una sesión por aparato, así que cerrar aquí ya no
+   * toca las demás. "Todos los dispositivos" existe para el caso que motivó
+   * el cambio: un teléfono perdido o prestado.
+   */
+  const handleLogout = (allDevices = false) => {
     dialog.confirm({
       tone: 'danger',
-      title: '¿Cerrar sesión?',
-      message: 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
+      title: allDevices ? '¿Cerrar sesión en todos?' : '¿Cerrar sesión?',
+      message: allDevices
+        ? 'Se cerrará aquí y en cualquier otro teléfono o tablet donde hayas entrado.'
+        : 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
       confirmLabel: 'Cerrar sesión',
       onConfirm: async () => {
         setIsLoggingOut(true);
         try {
-          await logout();
+          await logout({ allDevices });
           router.replace(routes.auth.login);
         } catch (caught) {
           dialog.showError(toAppError(caught));
@@ -104,10 +117,23 @@ export const ProfileScreen = () => {
             />
           ) : null}
           <Badge
-            label={pluralize(businesses.length, 'negocio')}
+            label={
+              isClientMode
+                ? pluralize(accounts.length, 'tienda')
+                : pluralize(businesses.length, 'negocio')
+            }
             tone="brand"
-            icon="storefront"
+            icon={isClientMode ? 'wallet' : 'storefront'}
           />
+        </View>
+
+        {/*
+          El perfil es la misma pantalla en los dos modos, así que el
+          interruptor vive aquí también: es el sitio donde la gente busca los
+          ajustes de su cuenta cuando no encuentra la píldora del inicio.
+        */}
+        <View style={styles.heroSwitcher}>
+          <ModeSwitcher inverse />
         </View>
       </LinearGradient>
 
@@ -158,41 +184,61 @@ export const ProfileScreen = () => {
           />
         </Card>
 
-        {/* ── Negocio ─────────────────────────────────────────────────────── */}
+        {/* ── Negocio (tendero) o tiendas (cliente) ───────────────────────── */}
         <Text variant="overline" color="textSubtle" style={styles.groupLabel}>
-          Negocio
+          {isClientMode ? 'Donde te fían' : 'Negocio'}
         </Text>
 
         <Card padding="none" style={styles.group}>
-          <SettingRow
-            icon="storefront-outline"
-            label="Mis negocios"
-            description={
-              activeBusiness
-                ? `${activeBusiness.name} · ${pluralize(businesses.length, 'negocio', 'negocios')}`
-                : pluralize(businesses.length, 'negocio', 'negocios')
-            }
-            // Muestra el rol en el negocio activo (Dueño / Cajero…). Solo aparece
-            // cuando el backend ya trajo la membresía; si no, se omite.
-            trailing={activeRole ? <RoleBadge role={activeRole} /> : undefined}
-            onPress={() => router.push(routes.tabs.businesses)}
-          />
-          {activeBusiness ? (
+          {isClientMode ? (
+            <SettingRow
+              icon="wallet-outline"
+              label="Mis tiendas"
+              description={
+                accounts.length > 0
+                  ? pluralize(accounts.length, 'tienda')
+                  : hasConfirmedNoAccounts
+                    ? 'Todavía nadie te ha vinculado'
+                    : // La consulta no respondió: no se afirma que no hay ninguna.
+                      'Toca para ver tus tiendas'
+              }
+              onPress={() => router.push(routes.clientMode.wallet)}
+            />
+          ) : (
             <>
-              <Divider inset />
               <SettingRow
-                icon="people-outline"
-                label="Equipo"
-                description="Quién tiene acceso a tu negocio"
-                onPress={() => router.push(routes.team.list)}
+                icon="storefront-outline"
+                label="Mis negocios"
+                description={
+                  activeBusiness
+                    ? `${activeBusiness.name} · ${pluralize(businesses.length, 'negocio', 'negocios')}`
+                    : pluralize(businesses.length, 'negocio', 'negocios')
+                }
+                // Muestra el rol en el negocio activo (Dueño / Cajero…). Solo aparece
+                // cuando el backend ya trajo la membresía; si no, se omite.
+                trailing={activeRole ? <RoleBadge role={activeRole} /> : undefined}
+                onPress={() => router.push(routes.tabs.businesses)}
               />
+              {activeBusiness ? (
+                <>
+                  <Divider inset />
+                  <SettingRow
+                    icon="people-outline"
+                    label="Equipo"
+                    description="Quién tiene acceso a tu negocio"
+                    onPress={() => router.push(routes.team.list)}
+                  />
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
           <Divider inset />
           <SettingRow
             icon="ticket-outline"
             label="Tengo un código"
-            description="Únete a un negocio que te invitó"
+            // Un mismo código sirve para las dos cosas: el backend distingue
+            // entre invitación al equipo y vínculo como cliente por su `type`.
+            description="Únete a un negocio o vincúlate a una tienda"
             onPress={() => router.push(routes.invitation.accept)}
           />
         </Card>
@@ -217,7 +263,15 @@ export const ProfileScreen = () => {
             icon="log-out-outline"
             label={isLoggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
             destructive
-            onPress={handleLogout}
+            onPress={() => handleLogout()}
+          />
+          <Divider inset />
+          <SettingRow
+            icon="phone-portrait-outline"
+            label="Cerrar sesión en todos los dispositivos"
+            description="Útil si perdiste un celular o entraste en uno prestado"
+            destructive
+            onPress={() => handleLogout(true)}
           />
         </Card>
 
@@ -291,6 +345,12 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing['2xl'],
     borderBottomLeftRadius: theme.radius['3xl'],
     borderBottomRightRadius: theme.radius['3xl'],
+  },
+  heroSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing.xs,
   },
   heroMeta: {
     flexDirection: 'row',

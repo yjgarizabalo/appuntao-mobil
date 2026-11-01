@@ -17,6 +17,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useConnectivity } from '@/core/connectivity';
 import { type AppError, toAppError } from '@/core/errors/AppError';
 import { createLogger } from '@/core/logger';
 import { isCacheStale, readCache, writeCache } from '@/core/storage/cache';
@@ -170,10 +171,39 @@ export const useAsyncData = <T>(
           log.warn('Revalidación fallida; se conservan los datos en caché', {
             code: appError.code,
           });
-        } else {
-          setError(appError);
-          setStatus('error');
+          return;
         }
+
+        /**
+         * Sin datos en memoria, el disco es el último recurso antes de romper
+         * la pantalla.
+         *
+         * Hace falta por una carrera real: casi todas las pantallas disparan
+         * `refresh()` al recibir el foco, y el foco llega en el **mismo**
+         * montaje en que corre la carga inicial. Esa carga está esperando a
+         * `readCache` cuando el refresh incrementa `runId`, así que al volver
+         * del disco se descarta sin pintar nada. Si entonces la red falla,
+         * `dataRef` sigue vacío y el usuario veía "Problema del servidor"
+         * teniendo datos perfectamente buenos guardados.
+         *
+         * Se reproducía al cambiar de modo y volver: cada cambio remonta la
+         * pantalla y repite la carrera.
+         */
+        const fallback = key ? await readCache<T>(key) : null;
+        if (!mountedRef.current || runIdRef.current !== runId) return;
+
+        if (fallback) {
+          commitData(fallback.data);
+          setStatus('success');
+          setIsStale(true);
+          log.warn('Carga fallida; se muestran los datos guardados en disco', {
+            code: appError.code,
+          });
+          return;
+        }
+
+        setError(appError);
+        setStatus('error');
       } finally {
         if (mountedRef.current && runIdRef.current === runId && mode === 'refresh') {
           setIsRefreshing(false);
@@ -191,6 +221,31 @@ export const useAsyncData = <T>(
     void run('load');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, run, cacheKey, ...deps]);
+
+  /* ── Recuperación al volver la conexión ─────────────────────────────────── */
+
+  const { isOnline } = useConnectivity();
+  const wasOnlineRef = useRef(true);
+
+  /**
+   * Al recuperar internet se recarga sola, sin que el usuario tenga que
+   * arrastrar ni tocar "Reintentar".
+   *
+   * Es lo que la pantalla de sin conexión le promete ("en cuanto vuelvas a
+   * tener señal, esto se actualiza solo"), y aquí es donde se cumple: como
+   * todas las pantallas cargan con este hook, basta ponerlo una vez.
+   *
+   * Solo actúa en la transición caída → recuperada. Si ya había datos se usa
+   * `refresh`, que los mantiene en pantalla mientras revalida; si no había
+   * nada, `load`, que pinta el esqueleto.
+   */
+  useEffect(() => {
+    const wasOnline = wasOnlineRef.current;
+    wasOnlineRef.current = isOnline;
+
+    if (!isOnline || wasOnline || !enabled) return;
+    void run(dataRef.current === null ? 'load' : 'refresh');
+  }, [isOnline, enabled, run]);
 
   const setData = useCallback(
     (updater: T | ((previous: T | null) => T | null)) => {

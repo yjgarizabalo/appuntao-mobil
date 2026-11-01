@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'NOT_FOUND' // 404
   | 'CONFLICT' // 409 — p. ej. el usuario ya existe
   | 'VALIDATION' // 400/422 — datos inválidos
+  | 'RATE_LIMITED' // 429 — demasiados intentos seguidos
   | 'SERVER' // 5xx
   | 'CANCELLED' // la petición se abortó a propósito
   | 'UNKNOWN';
@@ -31,6 +32,14 @@ interface AppErrorOptions {
   cause?: unknown;
   /** Errores por campo, cuando el backend los devuelve. */
   fieldErrors?: Record<string, string>;
+  /**
+   * Texto crudo del servidor, **solo para los logs**. Nunca se muestra al
+   * usuario: en un 5xx suele ser un stack trace, y por eso `message` se queda
+   * con la copia genérica. Existe porque sin él un 5xx se registraba como
+   * `{ code: 'SERVER' }` a secas, que no permite distinguir un 500 de la API
+   * de un 502 del proxy mientras el servicio despierta.
+   */
+  detail?: string;
 }
 
 /** Mensajes por defecto, en español, listos para mostrar al usuario. */
@@ -64,6 +73,15 @@ const DEFAULT_COPY: Record<ErrorCode, { title: string; message: string }> = {
     title: 'Revisa los datos',
     message: 'Algunos datos no son válidos. Corrígelos e inténtalo de nuevo.',
   },
+  /**
+   * El backend limita los intentos de inicio de sesión (5 por minuto). No es
+   * un error del usuario ni algo que se deba reintentar solo: se le dice
+   * cuánto esperar y se le deja decidir.
+   */
+  RATE_LIMITED: {
+    title: 'Demasiados intentos',
+    message: 'Espera un minuto antes de volver a intentarlo.',
+  },
   SERVER: {
     title: 'Problema del servidor',
     message:
@@ -84,6 +102,8 @@ export class AppError extends Error {
   readonly title: string;
   readonly status?: number;
   readonly fieldErrors?: Record<string, string>;
+  /** Diagnóstico para logs. Ver `AppErrorOptions.detail`. */
+  readonly detail?: string;
 
   constructor(code: ErrorCode, options: AppErrorOptions = {}) {
     const copy = DEFAULT_COPY[code];
@@ -93,6 +113,7 @@ export class AppError extends Error {
     this.title = options.title ?? copy.title;
     this.status = options.status;
     this.fieldErrors = options.fieldErrors;
+    this.detail = options.detail;
     if (options.cause !== undefined) this.cause = options.cause;
   }
 
@@ -104,6 +125,15 @@ export class AppError extends Error {
   /** `true` si el error obliga a cerrar la sesión. */
   get isSessionExpired(): boolean {
     return this.code === 'UNAUTHORIZED';
+  }
+
+  /**
+   * Resumen para el logger: código, estado HTTP y texto del servidor. Es lo
+   * que hay que pasar a `log.warn`/`log.error` en vez de armarlo a mano en
+   * cada sitio, para que todos los registros tengan la misma forma.
+   */
+  get logContext(): { code: ErrorCode; status?: number; detail?: string } {
+    return { code: this.code, status: this.status, detail: this.detail };
   }
 }
 
@@ -130,6 +160,7 @@ export const codeFromStatus = (status: number): ErrorCode => {
   if (status === 404) return 'NOT_FOUND';
   if (status === 409) return 'CONFLICT';
   if (status === 400 || status === 422) return 'VALIDATION';
+  if (status === 429) return 'RATE_LIMITED';
   if (status >= 500) return 'SERVER';
   return 'UNKNOWN';
 };

@@ -25,6 +25,8 @@ import { type BusinessSummary, displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
+import { useAppMode } from '@/features/client/state/AppModeProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { DebtorRow } from '@/features/debtors/components/DebtorRow';
 import {
@@ -49,7 +51,14 @@ const TOP_DEBTORS = 5;
 export const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
-  const { activeBusinessId, activeBusiness, isEmpty: hasNoBusiness } = useBusinesses();
+  const {
+    activeBusinessId,
+    activeBusiness,
+    isEmpty: hasNoBusiness,
+    error: businessError,
+    refresh: refreshBusinesses,
+  } = useBusinesses();
+  const { setMode } = useAppMode();
 
   /**
    * Los totales los calcula el servidor. Antes se pedía una página de 100
@@ -95,18 +104,48 @@ export const HomeScreen = () => {
 
   const greeting = `Hola, ${getFirstName(displayName(user)) || 'Usuario'}`;
 
+  /* ── No se pudo cargar la lista de negocios ────────────────────────────── */
+
+  /*
+   * Antes de afirmar que no hay negocios hay que poder afirmarlo: si la lista
+   * no cargó —sin internet, o el servidor dormido— `businesses` queda vacío
+   * igual que si el usuario no tuviera ninguno, y la app le proponía crear uno
+   * que ya tiene. `ErrorState` se encarga de distinguir el caso: si el
+   * dispositivo está sin red muestra la pantalla de sin conexión.
+   */
+  if (hasNoBusiness && businessError) {
+    return (
+      <Screen padded>
+        <View style={[styles.emptyHost, { paddingTop: insets.top }]}>
+          <ErrorState error={businessError} onRetry={() => void refreshBusinesses()} />
+        </View>
+      </Screen>
+    );
+  }
+
   /* ── Sin negocios: el usuario acaba de registrarse ─────────────────────── */
 
   if (hasNoBusiness) {
     return (
       <Screen padded>
         <View style={[styles.emptyHost, { paddingTop: insets.top }]}>
+          {/*
+            La acción secundaria existe porque no todo el que se registra tiene
+            tienda: hay quien entra solo a mirar lo que le fían. Sin ella
+            quedaba encerrado en "crea tu primer negocio", sin forma de llegar
+            al modo cliente.
+          */}
           <EmptyState
             icon="storefront-outline"
             title="Crea tu primer negocio"
             message="Fiao organiza tus vales por negocio. Crea uno para empezar a registrar clientes y deudas."
             actionLabel="Crear negocio"
             onAction={() => router.push(routes.business.create)}
+            secondaryActionLabel="No tengo tienda, me fían a mí"
+            onSecondaryAction={() => {
+              setMode('client');
+              router.replace(routes.clientMode.wallet);
+            }}
             tone="brand"
           />
         </View>
@@ -140,15 +179,25 @@ export const HomeScreen = () => {
             contentFit="contain"
           />
 
-          <PressableScale
-            onPress={() => router.push(routes.tabs.profile)}
-            haptic="tap"
-            activeScale={0.92}
-            accessibilityLabel="Ir a tu perfil"
-            style={styles.avatarButton}
-          >
-            <Ionicons name="person" size={20} color={theme.color.textInverse} />
-          </PressableScale>
+          {/*
+            Los dos controles de "chrome" van juntos a la derecha de la barra:
+            el de modo y el del perfil. Colgado del saludo, el de modo quedaba
+            justo debajo del avatar y amontonaba esa esquina.
+          */}
+          <View style={styles.heroHeaderActions}>
+            {/* Cambiar a modo cliente: ver lo que DEBE en otras tiendas. */}
+            <ModeSwitcher inverse />
+
+            <PressableScale
+              onPress={() => router.push(routes.tabs.profile)}
+              haptic="tap"
+              activeScale={0.92}
+              accessibilityLabel="Ir a tu perfil"
+              style={styles.avatarButton}
+            >
+              <Ionicons name="person" size={20} color={theme.color.textInverse} />
+            </PressableScale>
+          </View>
         </View>
 
         <View style={styles.heroContext}>
@@ -355,6 +404,11 @@ const styles = StyleSheet.create({
   heroContext: {
     gap: theme.spacing.xs,
     marginTop: theme.spacing.md,
+  },
+  heroHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   avatarButton: {
     width: 40,

@@ -69,7 +69,15 @@ const SEARCH_LOCAL_MAX = PAGE_SIZE;
 export const DebtorListScreen = () => {
   const params = useLocalSearchParams<{ businessId?: string }>();
   const { user } = useSession();
-  const { activeBusinessId, businesses, getBusiness, isEmpty: hasNoBusiness, can } =
+  const {
+    activeBusinessId,
+    businesses,
+    getBusiness,
+    isEmpty: hasNoBusiness,
+    can,
+    error: businessError,
+    refresh: refreshBusinesses,
+  } =
     useBusinesses();
 
   /** El parámetro manda; si no viene, se usa el negocio activo. */
@@ -278,6 +286,24 @@ export const DebtorListScreen = () => {
   );
 
   const selectedDebtors = useMemo(() => Array.from(selected.values()), [selected]);
+
+  /* ── No se pudo cargar la lista de negocios ────────────────────────────── */
+
+  /*
+   * Antes de afirmar que no hay negocios hay que poder afirmarlo: si la lista
+   * no cargó —sin internet, o el servidor dormido— `businesses` queda vacío
+   * igual que si el usuario no tuviera ninguno, y la app le proponía crear uno
+   * que ya tiene. `ErrorState` se encarga de distinguir el caso: si el
+   * dispositivo está sin red muestra la pantalla de sin conexión.
+   */
+  if (hasNoBusiness && businessError) {
+    return (
+      <Screen>
+        <AppBar title="Clientes" large />
+        <ErrorState error={businessError} onRetry={() => void refreshBusinesses()} />
+      </Screen>
+    );
+  }
 
   /* ── Sin negocio todavía ───────────────────────────────────────────────── */
 

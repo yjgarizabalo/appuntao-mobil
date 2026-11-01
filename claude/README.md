@@ -39,6 +39,17 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
 - [**2026-09-20-teclado-tapa-inputs.md**](bitacora/2026-09-20-teclado-tapa-inputs.md) — el
   teclado tapaba los inputs en Android (registro, login, crear cliente, hojas de fiar/pago);
   se adoptó `react-native-keyboard-controller` en vez del `KeyboardAvoidingView` nativo.
+- [**2026-10-12-modo-cliente.md**](bitacora/2026-10-12-modo-cliente.md) — se agregó el modo
+  cliente (ver lo que uno debe en las tiendas donde le fían), construido sobre los endpoints
+  que ya existían. Incluye el repaso del backend y un riesgo de autorización abierto allí.
+- [**2026-10-14-terminos-y-condiciones.md**](bitacora/2026-10-14-terminos-y-condiciones.md) —
+  el registro ya no envía datos personales sin consentimiento: casilla de aceptación y
+  pantalla de lectura en `/legal/terms` con las 26 cláusulas y un índice plegable.
+  Incluye el pendiente abierto: el backend todavía no guarda la aceptación.
+- [**2026-10-19-endurecimiento-de-autenticacion.md**](bitacora/2026-10-19-endurecimiento-de-autenticacion.md) —
+  el backend pasó a rotar el refresh token y a manejar una sesión por dispositivo; la app
+  aprendió a renovar antes de que venza, a no cerrar sesión por un bache de red y a pedir
+  la contraseña actual para cambiarla. Incluye lo que quedó sin probar contra el servidor.
 
 ---
 

@@ -325,3 +325,119 @@ export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSum
 
   return { totalDebt, totalPaid, balance, openDebts, paidDebts, oldestOverdueDate };
 };
+
+/* ── El usuario visto como cliente ────────────────────────────────────────── */
+
+/**
+ * La ficha de deudor que **otro** tendero creó para este usuario en su negocio.
+ *
+ * Es la pieza que hace posible el modo cliente: la misma persona es `User`
+ * cuando administra su tienda y `Debtor` cuando le fían en la tienda de al
+ * lado. El backend las une con `Debtor.userId`, que se rellena solo cuando el
+ * documento o el celular coinciden al registrarse, o cuando el usuario acepta
+ * una invitación de tipo `DEBTOR`.
+ *
+ * El nombre no se toma de la cuenta sino de la ficha: el tendero pudo haberlo
+ * anotado como "Don Pepe", y es así como aparece en su cuaderno.
+ */
+export interface ClientAccount {
+  /** Id de la ficha de deudor. Es la llave para pedir las deudas. */
+  debtorId: string;
+  /** Nombre con el que el tendero lo registró. */
+  debtorName: string;
+  businessId: string;
+  businessName: string;
+  /** Teléfono anotado en la ficha, no el de la cuenta del usuario. */
+  phone?: string;
+}
+
+/** Una cuenta de cliente con sus deudas y sus totales ya resueltos. */
+export interface ClientStanding {
+  account: ClientAccount;
+  debts: Debt[];
+  summary: DebtorSummary;
+  /**
+   * La carga de esta tienda falló. Se conserva la fila en vez de descartarla
+   * para que el usuario vea *qué* tienda no cargó, en lugar de un total que
+   * silenciosamente le queda corto.
+   */
+  failed?: boolean;
+}
+
+/** Consolidado de todas las tiendas donde al usuario le fían. */
+export interface ClientOverview {
+  /** Lo que debe sumando todas las tiendas. */
+  totalBalance: number;
+  /** Tiendas donde queda saldo pendiente. */
+  storesWithDebt: number;
+  /** Tiendas donde está vinculado, deba o no. */
+  storesTotal: number;
+  /** Vencimiento más antiguo sin pagar, entre todas las tiendas. */
+  oldestOverdueDate: string | null;
+  /** Alguna tienda no cargó: el total mostrado puede estar incompleto. */
+  hasFailures: boolean;
+}
+
+/** Suma las cuentas del cliente en una sola cifra para el encabezado. */
+export const summarizeStandings = (standings: ClientStanding[]): ClientOverview => {
+  let totalBalance = 0;
+  let storesWithDebt = 0;
+  let oldestOverdueDate: string | null = null;
+  let hasFailures = false;
+
+  for (const standing of standings) {
+    if (standing.failed) {
+      hasFailures = true;
+      continue;
+    }
+
+    totalBalance += standing.summary.balance;
+    if (standing.summary.balance > 0) storesWithDebt += 1;
+
+    const overdue = standing.summary.oldestOverdueDate;
+    if (overdue) {
+      if (!oldestOverdueDate || new Date(overdue).getTime() < new Date(oldestOverdueDate).getTime()) {
+        oldestOverdueDate = overdue;
+      }
+    }
+  }
+
+  return {
+    totalBalance,
+    storesWithDebt,
+    storesTotal: standings.length,
+    oldestOverdueDate,
+    hasFailures,
+  };
+};
+
+/**
+ * Una fila del extracto del cliente: el movimiento más la tienda donde pasó.
+ *
+ * `Movement` por sí solo no basta aquí: en modo tendero el extracto es de un
+ * cliente dentro de *un* negocio, mientras que el cliente mira el de *todas*
+ * las tiendas a la vez y necesita saber a cuál pertenece cada línea.
+ */
+export interface ClientMovement {
+  movement: Movement;
+  businessId: string;
+  businessName: string;
+}
+
+/** Extracto unificado de todas las tiendas, del más reciente al más antiguo. */
+export const buildClientMovements = (standings: ClientStanding[]): ClientMovement[] => {
+  const rows: ClientMovement[] = [];
+
+  for (const standing of standings) {
+    if (standing.failed) continue;
+    for (const movement of buildMovements(standing.debts)) {
+      rows.push({
+        movement,
+        businessId: standing.account.businessId,
+        businessName: standing.account.businessName,
+      });
+    }
+  }
+
+  return rows.sort((a, b) => b.movement.date - a.movement.date);
+};

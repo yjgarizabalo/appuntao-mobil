@@ -138,6 +138,12 @@ export const typography = {
   bodyLg: { fontSize: 17, lineHeight: 24, letterSpacing: -0.1, fontWeight: fontWeight.regular },
   body: { fontSize: 15, lineHeight: 21, letterSpacing: 0, fontWeight: fontWeight.regular },
   bodyStrong: { fontSize: 15, lineHeight: 21, letterSpacing: 0, fontWeight: fontWeight.semibold },
+  /**
+   * Texto largo para leer de corrido (documentos legales, ayudas extensas).
+   * Mismo cuerpo que `body` con más interlineado: en párrafos de muchos
+   * renglones es lo que evita que el ojo salte de línea al volver.
+   */
+  prose: { fontSize: 15, lineHeight: 24, letterSpacing: 0, fontWeight: fontWeight.regular },
   caption: { fontSize: 13, lineHeight: 18, letterSpacing: 0, fontWeight: fontWeight.regular },
   captionStrong: { fontSize: 13, lineHeight: 18, letterSpacing: 0, fontWeight: fontWeight.semibold },
   overline: { fontSize: 11, lineHeight: 14, letterSpacing: 0.8, fontWeight: fontWeight.bold },

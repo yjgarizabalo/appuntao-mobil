@@ -22,6 +22,18 @@ export const StorageKeys = {
   activeBusinessId: 'active_business_id',
   /** Marca de que el usuario ya vio el onboarding. */
   onboardingSeen: 'onboarding_seen',
+  /**
+   * UUID de la instalación (`deviceId` del backend). A diferencia de las
+   * demás llaves, **no se borra al cerrar sesión**: identifica el aparato,
+   * no al usuario. Ver `@/core/device/deviceIdentity`.
+   */
+  deviceId: 'device_id',
+  /**
+   * Último modo usado (`tendero` o `cliente`). Se recuerda igual que el
+   * negocio activo: quien entra a la app a mirar lo que debe espera abrirla
+   * en esa vista, no en la de su tienda.
+   */
+  appMode: 'app_mode',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

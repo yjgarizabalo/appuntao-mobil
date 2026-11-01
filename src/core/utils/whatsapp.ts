@@ -93,6 +93,51 @@ export const buildTeamInvite = ({ businessName, roleLabel, code }: TeamInviteInp
   );
 };
 
+export interface PaymentNoticeInput {
+  /** Nombre del cliente, para que el tendero sepa de quién es el mensaje. */
+  clientName: string;
+  /** Tienda a la que se le debe. */
+  businessName: string;
+  /** Saldo pendiente, ya formateado con `formatMoney`. */
+  formattedBalance: string;
+}
+
+/**
+ * Mensaje del **cliente** al tendero para coordinar el pago.
+ *
+ * Es la contraparte de `buildDebtReminder`: allí el tendero cobra, aquí el
+ * cliente responde. No registra nada en el backend a propósito —quien mueve el
+ * saldo es siempre el tendero— así que el texto evita afirmar que la deuda
+ * quedó saldada y se limita a abrir la conversación.
+ */
+export const buildPaymentNotice = ({
+  clientName,
+  businessName,
+  formattedBalance,
+}: PaymentNoticeInput): string => {
+  const firstName = clientName.trim().split(/\s+/)[0] ?? clientName.trim();
+
+  return (
+    `¡Hola! Soy *${firstName}* 👋\n\n` +
+    `Le escribo por mi cuenta en *${businessName}*. ` +
+    `Me aparece un saldo pendiente de *${formattedBalance}*.\n\n` +
+    'Quiero coordinar el pago, ¿cómo le queda mejor? ¡Gracias!'
+  );
+};
+
+/**
+ * URL de WhatsApp **sin destinatario**: abre la app con el mensaje escrito y
+ * deja que la persona elija a quién enviarlo.
+ *
+ * Hace falta porque el cliente no conoce el teléfono del tendero: el API no
+ * expone los datos del negocio a quien no es miembro (`GET /business/:id`
+ * responde 403) y `clientBusinesses` solo trae nombre y moneda. Antes que
+ * ocultar el botón o inventar un número, se delega la elección al usuario, que
+ * casi siempre tiene a la tienda entre sus contactos.
+ */
+export const buildWhatsAppShareUrl = (message: string): string =>
+  `https://wa.me/?text=${encodeURIComponent(message)}`;
+
 /** URL lista para `Linking.openURL`. */
 export const buildWhatsAppUrl = (phone: string, message: string): string | null => {
   const number = toWhatsAppNumber(phone);

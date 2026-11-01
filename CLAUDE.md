@@ -31,10 +31,16 @@ react         19.1.0
 react-native  0.81.4
 ```
 
-`npx expo-doctor` reporta hoy **17/18**: el único check que falla es «packages match versions
-required by installed Expo SDK», por deriva de parche en `expo-router`, `expo-splash-screen` y
-`expo-status-bar` (el registro avanzó, el proyecto no). Es un aviso, **no** rompe el build ni
-EAS. No se arregla solo: subirlos exige autorización y volver a probar en las dos plataformas.
+`npx expo-doctor` reporta hoy **16/18**. Los dos checks que fallan son avisos conocidos que
+**no** rompen el build ni EAS:
+
+1. «packages match versions required by installed Expo SDK», por deriva de parche en
+   `expo-router`, `expo-splash-screen` y `expo-status-bar` (el registro avanzó, el proyecto
+   no). Subirlos exige autorización y volver a probar en las dos plataformas.
+2. «required peer dependencies are installed»: falta `react-dom`, que pide
+   `react-native-web`. Solo afecta al target **web**, que es secundario (Fase 0.2).
+   `react-dom` está fijado en `overrides` y listado en `expo.install.exclude`, pero no
+   declarado en `dependencies`; instalarlo toca el trío congelado y requiere autorización.
 
 Está **prohibido** sin autorización explícita:
 
@@ -82,6 +88,7 @@ Todo vive en `src/domain/`:
 | `constants.ts` | `DocumentType`, `PaymentMethod`, `DebtStatus`, `TransactionType` + etiquetas en español |
 | `models.ts`    | Entidades (`User`, `Business`, `Debtor`, `Debt`, `Payment`) y funciones de dominio      |
 | `mappers.ts`   | Traducción de las respuestas del backend a los modelos                                  |
+| `legal.ts`     | Términos y Condiciones: el documento que se acepta al registrarse, con su versión        |
 
 Funciones de dominio que hay que usar en vez de recalcular en la pantalla:
 
@@ -90,6 +97,10 @@ Funciones de dominio que hay que usar en vez de recalcular en la pantalla:
 - `summarizeDebts(debts, serverBalance)` — total fiado, total pagado, saldo, deudas
   abiertas/pagadas y la vencida más antigua. Prioriza el saldo del servidor.
 - `buildMovements(debts)` — extracto unificado de deudas + pagos ordenado por fecha.
+- `summarizeStandings(standings)` — consolidado del **modo cliente**: cuánto debe el
+  usuario sumando todas las tiendas donde le fían.
+- `buildClientMovements(standings)` — extracto del cliente cruzando varias tiendas; cada
+  fila sabe de qué tienda viene.
 
 **Multi-tenant:** clientes, deudas y pagos pertenecen a un negocio y viajan con el header
 `x-business-id`. Nunca lo pongas a mano: usa `businessHeader(businessId)` de
@@ -115,22 +126,26 @@ fiao-mobil-v2/
 ├── src/
 │   ├── core/                 # infraestructura, sin nada de negocio
 │   │   ├── config/env.ts     # variables de entorno validadas
+│   │   ├── device/           # identidad de la instalación (deviceId, deviceName)
 │   │   ├── errors/           # AppError: un solo modelo de error
 │   │   ├── http/             # cliente axios, refresh, normalización de payloads
 │   │   ├── hooks/            # useForm, useAsyncData, usePagedList, useDebouncedValue
 │   │   ├── navigation/       # routes.ts — todas las rutas en un sitio
 │   │   ├── storage/          # AsyncStorage tipado
 │   │   ├── logger/           # logs con niveles y redacción de tokens
+│   │   ├── connectivity.ts   # estado de la red (expo-network)
 │   │   ├── haptics.ts
 │   │   └── utils/            # format.ts, validation.ts
 │   ├── domain/               # entidades, constantes y mappers
 │   ├── theme/                # tokens.ts (escala cruda) + index.ts (roles)
 │   ├── ui/                   # design system (24 componentes)
 │   └── features/             # una carpeta por área de negocio
-│       ├── auth/             # api · session · screens
+│       ├── auth/             # api · components · session · screens
 │       ├── businesses/       # api · state · components · screens
+│       ├── client/           # modo cliente: api · state · components · screens
 │       ├── debtors/          # api · components · screens
 │       ├── debts/            # api · components
+│       ├── legal/            # términos y condiciones: components · screens
 │       ├── payments/         # api · components
 │       ├── home/             # screens
 │       └── profile/          # screens
@@ -179,6 +194,11 @@ Así la pantalla se puede mover, reutilizar o probar sin pelear con el enrutador
 | `/business/new`      | `app/(app)/business/new.tsx`      | Crear negocio                                        |
 | `/settings/profile`  | `app/(app)/settings/profile.tsx`  | Editar perfil                                        |
 | `/settings/security` | `app/(app)/settings/security.tsx` | Cambiar contraseña                                   |
+| `/wallet`            | `app/(app)/(client)/wallet.tsx`    | **Modo cliente**: cuánto debo y en qué tiendas      |
+| `/movements`         | `app/(app)/(client)/movements.tsx` | Modo cliente: extracto de todas las tiendas         |
+| `/me`                | `app/(app)/(client)/me.tsx`        | Modo cliente: perfil (igual que `/profile`)         |
+| `/store/[id]`        | `app/(app)/store/[id].tsx`         | Modo cliente: mi cuenta en una tienda               |
+| `/legal/terms`       | `app/legal/terms.tsx`             | Términos y condiciones y tratamiento de datos        |
 | —                    | `app/+not-found.tsx`              | Ruta inexistente (deep link roto)                    |
 
 Reglas:
@@ -190,19 +210,26 @@ Reglas:
 - Los grupos `(auth)`, `(app)`, `(tabs)` no aparecen en la URL; sirven para colgar layouts.
 - `app/(app)/_layout.tsx` es la **guardia de sesión**: sin sesión redirige a `/login`.
   `app/(auth)/_layout.tsx` hace lo contrario. Ninguna pantalla debe comprobar la sesión.
+- `app/legal/` cuelga de la **raíz**, no de `(auth)` ni de `(app)`: un documento legal se
+  lee antes de tener cuenta y también después, y esos dos grupos redirigen según la
+  sesión. Cualquier pantalla que deba verse desde los dos lados va ahí.
 - Los formularios se presentan como `modal` en iOS y `card` en Android (ya configurado).
-- La barra de pestañas es propia: `src/ui/TabBar.tsx`.
+- La barra de pestañas es propia: `src/ui/TabBar.tsx`. Hay **dos** juegos de pestañas,
+  uno por modo: `(tabs)` para el tendero y `(client)` para el cliente. Cuál se ve lo
+  decide `AppModeProvider`; quien navega entre ellos es `ModeSwitcher` o la puerta de
+  entrada, siempre con `router.replace` (son dos raíces, no una encima de la otra).
 
 ---
 
 ## FASE 4 — Estado
 
-**Dos providers globales**, montados en `app/_layout.tsx`:
+**Tres providers globales**, montados en `app/_layout.tsx`:
 
 | Provider           | Hook              | Para qué                                                                      |
 | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout`, `patchUser`                  |
+| `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout(opciones)`, `endSession`, `patchUser` |
 | `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness` |
+| `AppModeProvider`  | `useAppMode()`    | **modo** `merchant` / `client` (persistido), tiendas donde al usuario le fían, `setMode`, `refreshAccounts` |
 
 Todo lo demás **no** es estado global: clientes, deudas y pagos los carga cada pantalla con
 los hooks del núcleo. Si necesitas datos en una pantalla nueva, el orden de preferencia es:
@@ -247,8 +274,11 @@ Un solo cliente: `http` en `src/core/http/client.ts` (axios). Hace:
 - adjunta el `Bearer` leyéndolo **de memoria** (`tokenStore`), no de AsyncStorage por request;
 - renueva la sesión en un 401 con patrón **single-flight** (una sola renovación compartida)
   y reintenta la petición original;
-- si el refresh falla, limpia credenciales y avisa por `onSessionExpired`, que el
-  `SessionProvider` escucha para volver al login;
+- **renueva antes de que venza**: si al access token le queda menos de un minuto, lo cambia
+  antes de enviar la petición;
+- solo un **401** del refresh cierra la sesión (limpia credenciales y avisa por
+  `onSessionExpired`, que el `SessionProvider` escucha para volver al login). Un fallo de
+  red o un 502 del servidor despertando se propagan sin echar al usuario;
 - convierte **todo** error a `AppError` antes de propagarlo;
 - registra con el logger, que **redacta** tokens y contraseñas.
 
@@ -265,10 +295,49 @@ toItem<T>(payload); // → T | null
 toAmount(value); // "15000.00" → 15000
 ```
 
+### Sesión y dispositivo
+
+El backend mantiene **una sesión por dispositivo** y **rota** el refresh token. De ahí tres
+reglas que no se pueden saltar:
+
+1. **El login manda `deviceId`** (obligatorio; sin él responde 400) y `deviceName`. Los dos
+   salen de `@/core/device/deviceIdentity`: un UUID v4 creado la primera vez y guardado en
+   `device_id`, más marca, modelo y sistema operativo. Nunca se arman a mano.
+2. **`device_id` NO se borra al cerrar sesión.** Identifica el aparato, no a la persona.
+3. **Nunca dispares dos renovaciones con el mismo refresh token.** El servidor lo lee como
+   un robo y cierra la sesión. El `single-flight` del cliente HTTP ya lo garantiza: no
+   llames al endpoint de refresh desde ningún otro sitio.
+
+El límite de intentos de login (5 por minuto) llega como **429** → `AppError('RATE_LIMITED')`.
+Se muestra el mensaje y **no se reintenta solo**.
+
+### Sin conexión
+
+`src/core/connectivity.ts` (sobre `expo-network`) sabe si hay internet **antes** de
+intentar nada, y expone dos puertas sobre la misma función para que la interfaz y la red
+no puedan discrepar: `useConnectivity()` para componentes e `isOffline()` para el
+interceptor de axios.
+
+Qué pasa cuando no hay red, sin que ninguna pantalla tenga que programarlo:
+
+- el interceptor de peticiones **corta de inmediato** con `AppError('NETWORK')` en vez de
+  dejar morir la petición contra el timeout de 60 s, así que un formulario avisa al
+  instante;
+- `OfflineBanner`, montado una sola vez en `app/_layout.tsx`, muestra la píldora de aviso;
+- `ErrorState` detecta que el dispositivo está sin red y pinta `OfflineState` en vez del
+  error genérico, de modo que **todas** las pantallas dicen lo correcto;
+- `useAsyncData` recarga sola en cuanto vuelve la conexión, y mientras tanto conserva lo
+  que haya en caché con `StaleNotice`.
+
+Regla derivada: **nunca afirmes un vacío que no te consta**. Si una lista vino vacía
+porque la petición falló, no se dice "no tienes nada" —se muestra el error—. Vale para
+negocios, clientes y tiendas del modo cliente.
+
 ### Errores
 
 **Un** modelo: `AppError` con `code` cerrado (`NETWORK`, `TIMEOUT`, `UNAUTHORIZED`,
-`FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION`, `SERVER`, `CANCELLED`, `UNKNOWN`),
+`FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION`, `RATE_LIMITED`, `SERVER`, `CANCELLED`,
+`UNKNOWN`),
 `title` y `message` **ya escritos para el usuario**, más `fieldErrors` cuando el backend
 dice qué campo falló. En un `catch`:
 
@@ -287,11 +356,12 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 
 | Método | Endpoint              | `x-business-id` | Módulo                                            |
 | ------ | --------------------- | --------------- | ------------------------------------------------- |
-| POST   | `/auth/login`         | —               | `authApi.login`                                   |
+| POST   | `/auth/login`         | —               | `authApi.login` (manda `deviceId` + `deviceName`) |
 | POST   | `/auth/logout`        | —               | `authApi.logout` (header `x-refresh-token`)       |
-| POST   | `/auth/refresh`       | —               | interceptor de `client.ts`                        |
+| POST   | `/auth/refresh`       | —               | interceptor de `client.ts` (header `x-device-id`) |
 | POST   | `/users`              | —               | `authApi.register`                                |
-| PATCH  | `/users/:id`          | —               | `authApi.updateProfile` / `updatePassword`        |
+| PATCH  | `/users/:id`          | —               | `authApi.updateProfile` (**solo** nombre y apellido) |
+| PATCH  | `/users/me/password`  | —               | `authApi.updatePassword` (pide la actual)         |
 | GET    | `/business`           | —               | `businessApi.list`                                |
 | POST   | `/business`           | —               | `businessApi.create`                              |
 | GET    | `/debtors`            | ✅              | `debtorApi.listByBusiness`                        |
@@ -305,7 +375,12 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 | POST   | `/payments/global`    | ✅              | `paymentApi.createGlobal`                         |
 
 Llaves de AsyncStorage (contrato, compatible con el v1): `auth_token`, `refresh_token`,
-`auth_user`, más `active_business_id`. Se acceden **solo** por `StorageKeys`.
+`auth_user`, más `active_business_id` y `app_mode`. Se acceden **solo** por `StorageKeys`,
+y las tres últimas se borran al cerrar sesión para que la siguiente cuenta del dispositivo
+no herede ni el negocio ni el modo.
+
+`device_id` es la excepción: se escribe una vez y **sobrevive al cierre de sesión**, porque
+identifica la instalación ante el backend (ver «Sesión y dispositivo»).
 
 ---
 
@@ -327,10 +402,11 @@ degradado `theme.gradient.hero`.
 | Estructura    | `Screen`, `AppBar`, `TabBar`, `Card`, `Divider`, `Spacer`, `SectionHeader`                                |
 | Texto         | `Text` (variantes de la escala), `AnimatedMoney` (cifra que cuenta)                                       |
 | Acción        | `Button`, `IconButton`, `Fab`, `PressableScale`                                                           |
-| Formulario    | `TextField`, `MoneyField`, `OptionPicker`, `SearchBar`, `SegmentedControl`                                |
+| Formulario    | `TextField`, `MoneyField`, `OptionPicker`, `SearchBar`, `SegmentedControl`, `Checkbox`, `CheckboxField` |
 | Datos         | `Avatar`, `Badge`, `ListRow`, `StatTile`, `IconBubble`                                                    |
 | Superposición | `Sheet` (bottom sheet con gesto), `Dialog` + `useDialog`, `ToastProvider` + `useToast`                    |
-| Estados       | `Skeleton`, `RowSkeleton`, `ListSkeleton`, `CardSkeleton`, `EmptyState`, `ErrorState`, `ListFooterLoader` |
+| Estados       | `Skeleton`, `RowSkeleton`, `ListSkeleton`, `CardSkeleton`, `EmptyState`, `ErrorState`, `OfflineState`, `ListFooterLoader` |
+| Conectividad  | `OfflineBanner` (aviso global, va una sola vez en la raíz), `StaleNotice`                                  |
 
 Reglas de uso:
 

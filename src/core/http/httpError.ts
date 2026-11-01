@@ -74,6 +74,18 @@ export const toHttpAppError = (error: unknown): AppError => {
       fieldErrors: parseFieldErrors(body?.errors),
       // Para 5xx nunca mostramos el texto del servidor: suele ser un stack trace.
       message: code === 'SERVER' ? undefined : backendMessage,
+      /**
+       * El mismo texto, guardado aparte para los logs. Un 5xx se registraba
+       * como `{ code: 'SERVER' }` a secas y no se podía saber si venía de la
+       * API o del proxy; con esto el registro dice qué respondió de verdad.
+       * Nest contesta JSON (`{"statusCode":500,...}`) y el proxy de Render
+       * contesta HTML, así que el origen se distingue de un vistazo.
+       */
+      detail:
+        backendMessage ??
+        (typeof error.response.data === 'string'
+          ? error.response.data.slice(0, 200)
+          : undefined),
     });
   }
 

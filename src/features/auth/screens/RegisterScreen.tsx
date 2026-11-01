@@ -9,11 +9,17 @@
  * Al terminar no se inicia sesión automáticamente (el backend solo crea el
  * usuario), así que se confirma el éxito y se lleva al login con el correo ya
  * escrito.
+ *
+ * Cierra con la casilla de aceptación de los Términos y Condiciones
+ * (`TermsAcceptance`), que es la última puerta antes de enviar: sin marcarla
+ * no sale ningún dato personal hacia el servidor.
  */
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
+import { haptics } from '@/core/haptics';
 import { useForm } from '@/core/hooks/useForm';
 import { routes } from '@/core/navigation/routes';
 import {
@@ -26,6 +32,7 @@ import {
   required,
 } from '@/core/utils/validation';
 import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '@/domain/constants';
+import { TermsAcceptance } from '@/features/auth/components/TermsAcceptance';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   AppBar,
@@ -43,6 +50,19 @@ import { theme } from '@/theme';
 export const RegisterScreen = () => {
   const { register } = useSession();
   const dialog = useDialog();
+
+  /**
+   * La aceptación no vive en `useForm`: el hook maneja campos de texto, y un
+   * booleano disfrazado de cadena ("true" / "") se lee peor de lo que ahorra.
+   */
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsError, setTermsError] = useState<string | undefined>(undefined);
+
+  const handleAcceptTerms = (accepted: boolean) => {
+    setAcceptedTerms(accepted);
+    // El error desaparece en cuanto se marca, sin esperar a reenviar.
+    if (accepted) setTermsError(undefined);
+  };
 
   const form = useForm({
     initialValues: {
@@ -64,6 +84,14 @@ export const RegisterScreen = () => {
       password: [passwordRule],
     },
     onSubmit: async (values) => {
+      // Primero que nada: sin consentimiento no se manda un solo dato
+      // personal al servidor.
+      if (!acceptedTerms) {
+        setTermsError('Debes aceptar los Términos y Condiciones para crear tu cuenta');
+        haptics.warning();
+        return;
+      }
+
       if (values.password !== values.confirmPassword) {
         form.setFieldError('confirmPassword', 'Las contraseñas no coinciden');
         return;
@@ -241,6 +269,8 @@ export const RegisterScreen = () => {
         returnKeyType="go"
         onSubmitEditing={form.submit}
       />
+
+      <TermsAcceptance accepted={acceptedTerms} onChange={handleAcceptTerms} error={termsError} />
 
       <Dialog {...dialog.props} />
     </Screen>
