@@ -46,6 +46,10 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
   el registro ya no envía datos personales sin consentimiento: casilla de aceptación y
   pantalla de lectura en `/legal/terms` con las 26 cláusulas y un índice plegable.
   Incluye el pendiente abierto: el backend todavía no guarda la aceptación.
+- [**2026-10-19-endurecimiento-de-autenticacion.md**](bitacora/2026-10-19-endurecimiento-de-autenticacion.md) —
+  el backend pasó a rotar el refresh token y a manejar una sesión por dispositivo; la app
+  aprendió a renovar antes de que venza, a no cerrar sesión por un bache de red y a pedir
+  la contraseña actual para cambiarla. Incluye lo que quedó sin probar contra el servidor.
 
 ---
 

@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'NOT_FOUND' // 404
   | 'CONFLICT' // 409 — p. ej. el usuario ya existe
   | 'VALIDATION' // 400/422 — datos inválidos
+  | 'RATE_LIMITED' // 429 — demasiados intentos seguidos
   | 'SERVER' // 5xx
   | 'CANCELLED' // la petición se abortó a propósito
   | 'UNKNOWN';
@@ -71,6 +72,15 @@ const DEFAULT_COPY: Record<ErrorCode, { title: string; message: string }> = {
   VALIDATION: {
     title: 'Revisa los datos',
     message: 'Algunos datos no son válidos. Corrígelos e inténtalo de nuevo.',
+  },
+  /**
+   * El backend limita los intentos de inicio de sesión (5 por minuto). No es
+   * un error del usuario ni algo que se deba reintentar solo: se le dice
+   * cuánto esperar y se le deja decidir.
+   */
+  RATE_LIMITED: {
+    title: 'Demasiados intentos',
+    message: 'Espera un minuto antes de volver a intentarlo.',
   },
   SERVER: {
     title: 'Problema del servidor',
@@ -150,6 +160,7 @@ export const codeFromStatus = (status: number): ErrorCode => {
   if (status === 404) return 'NOT_FOUND';
   if (status === 409) return 'CONFLICT';
   if (status === 400 || status === 422) return 'VALIDATION';
+  if (status === 429) return 'RATE_LIMITED';
   if (status >= 500) return 'SERVER';
   return 'UNKNOWN';
 };

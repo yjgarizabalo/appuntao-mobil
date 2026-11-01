@@ -22,7 +22,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 
-import { toAppError } from '@/core/errors/AppError';
+import { AppError, toAppError } from '@/core/errors/AppError';
 import { routes } from '@/core/navigation/routes';
 import { useForm } from '@/core/hooks/useForm';
 import { emailOrDocument, required } from '@/core/utils/validation';
@@ -59,17 +59,32 @@ export const LoginScreen = () => {
         router.replace(routes.tabs.home);
       } catch (caught) {
         const error = toAppError(caught);
-        // Un 401 aquí siempre son credenciales incorrectas, no sesión vencida:
-        // se le da un texto más útil que el genérico.
-        dialog.showError(
-          error.code === 'UNAUTHORIZED'
-            ? Object.assign(error, {
-                title: 'Datos incorrectos',
-                message:
-                  'El correo/documento o la contraseña no coinciden. Revísalos e intenta de nuevo.',
-              })
-            : error,
-        );
+
+        /**
+         * Un 401 del login no es una sesión vencida, así que el título por
+         * defecto de `UNAUTHORIZED` ("Sesión no válida") despista: se cambia.
+         *
+         * El **mensaje**, en cambio, lo manda el backend cuando lo da: ya no
+         * todos los 401 son "contraseña mala" —también responde así cuando el
+         * dato escrito pertenece a dos cuentas, y ahí explica qué hacer—. Solo
+         * si calla se usa el texto propio.
+         *
+         * El 429 (demasiados intentos) trae su propio mensaje y **no** se
+         * reintenta solo: el usuario decide cuándo volver a probar.
+         */
+        if (error.code === 'UNAUTHORIZED') {
+          dialog.showError(
+            new AppError('UNAUTHORIZED', {
+              title: 'No pudimos entrar',
+              message:
+                error.detail ??
+                'El correo, celular o documento, o la contraseña, no coinciden. Revísalos e intenta de nuevo.',
+            }),
+          );
+          return;
+        }
+
+        dialog.showError(error);
       }
     },
   });
@@ -114,7 +129,7 @@ export const LoginScreen = () => {
           </Text>
 
           <TextField
-            label="Correo o documento"
+            label="Correo, celular o documento"
             placeholder="tu@correo.com o 1020304050"
             icon="person-outline"
             value={form.values.identifier}

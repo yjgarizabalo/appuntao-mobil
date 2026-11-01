@@ -55,16 +55,25 @@ export const ProfileScreen = () => {
   const fullName = displayName(user);
   const isClientMode = mode === 'client';
 
-  const handleLogout = () => {
+  /**
+   * Salir de este dispositivo o de todos.
+   *
+   * El backend mantiene una sesión por aparato, así que cerrar aquí ya no
+   * toca las demás. "Todos los dispositivos" existe para el caso que motivó
+   * el cambio: un teléfono perdido o prestado.
+   */
+  const handleLogout = (allDevices = false) => {
     dialog.confirm({
       tone: 'danger',
-      title: '¿Cerrar sesión?',
-      message: 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
+      title: allDevices ? '¿Cerrar sesión en todos?' : '¿Cerrar sesión?',
+      message: allDevices
+        ? 'Se cerrará aquí y en cualquier otro teléfono o tablet donde hayas entrado.'
+        : 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
       confirmLabel: 'Cerrar sesión',
       onConfirm: async () => {
         setIsLoggingOut(true);
         try {
-          await logout();
+          await logout({ allDevices });
           router.replace(routes.auth.login);
         } catch (caught) {
           dialog.showError(toAppError(caught));
@@ -254,7 +263,15 @@ export const ProfileScreen = () => {
             icon="log-out-outline"
             label={isLoggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
             destructive
-            onPress={handleLogout}
+            onPress={() => handleLogout()}
+          />
+          <Divider inset />
+          <SettingRow
+            icon="phone-portrait-outline"
+            label="Cerrar sesión en todos los dispositivos"
+            description="Útil si perdiste un celular o entraste en uno prestado"
+            destructive
+            onPress={() => handleLogout(true)}
           />
         </Card>
 

@@ -16,10 +16,20 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /* ── Validadores individuales ─────────────────────────────────────────────── */
 
+/**
+ * Concuerda el adjetivo con el artículo de la etiqueta: "La contraseña es
+ * obligatoria", no "es obligatorio". Las etiquetas de este proyecto siempre
+ * empiezan por artículo ("El nombre", "La contraseña"), así que basta con
+ * mirarlo.
+ */
+const agreesFeminine = (label: string) => /^(la|las)\s/i.test(label.trim());
+
 export const required =
   (label = 'Este campo'): Validator =>
   (value) =>
-    value.trim().length === 0 ? `${label} es obligatorio` : undefined;
+    value.trim().length === 0
+      ? `${label} es ${agreesFeminine(label) ? 'obligatoria' : 'obligatorio'}`
+      : undefined;
 
 export const email: Validator = (value) =>
   EMAIL_PATTERN.test(value.trim()) ? undefined : 'El correo no tiene un formato válido';
@@ -66,15 +76,19 @@ export const matches =
   (value) =>
     value === other ? undefined : message;
 
-/** Acepta correo **o** número de documento: es el login del v1. */
+/**
+ * Identificador del login: correo, celular **o** número de documento. El
+ * backend resuelve los tres contra la misma cuenta, así que aquí solo se
+ * comprueba que tenga una forma plausible.
+ */
 export const emailOrDocument: Validator = (value) => {
   const trimmed = value.trim();
-  if (trimmed.length === 0) return 'Ingresa tu correo o documento';
+  if (trimmed.length === 0) return 'Ingresa tu correo, celular o documento';
   const looksLikeEmail = trimmed.includes('@');
   if (looksLikeEmail) return email(trimmed);
   return /^\d{4,}$/.test(trimmed)
     ? undefined
-    : 'Ingresa un correo válido o un número de documento';
+    : 'Ingresa un correo válido, un celular o un número de documento';
 };
 
 export const positiveAmount =

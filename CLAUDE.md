@@ -126,6 +126,7 @@ fiao-mobil-v2/
 ├── src/
 │   ├── core/                 # infraestructura, sin nada de negocio
 │   │   ├── config/env.ts     # variables de entorno validadas
+│   │   ├── device/           # identidad de la instalación (deviceId, deviceName)
 │   │   ├── errors/           # AppError: un solo modelo de error
 │   │   ├── http/             # cliente axios, refresh, normalización de payloads
 │   │   ├── hooks/            # useForm, useAsyncData, usePagedList, useDebouncedValue
@@ -226,7 +227,7 @@ Reglas:
 
 | Provider           | Hook              | Para qué                                                                      |
 | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout`, `patchUser`                  |
+| `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout(opciones)`, `endSession`, `patchUser` |
 | `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness` |
 | `AppModeProvider`  | `useAppMode()`    | **modo** `merchant` / `client` (persistido), tiendas donde al usuario le fían, `setMode`, `refreshAccounts` |
 
@@ -273,8 +274,11 @@ Un solo cliente: `http` en `src/core/http/client.ts` (axios). Hace:
 - adjunta el `Bearer` leyéndolo **de memoria** (`tokenStore`), no de AsyncStorage por request;
 - renueva la sesión en un 401 con patrón **single-flight** (una sola renovación compartida)
   y reintenta la petición original;
-- si el refresh falla, limpia credenciales y avisa por `onSessionExpired`, que el
-  `SessionProvider` escucha para volver al login;
+- **renueva antes de que venza**: si al access token le queda menos de un minuto, lo cambia
+  antes de enviar la petición;
+- solo un **401** del refresh cierra la sesión (limpia credenciales y avisa por
+  `onSessionExpired`, que el `SessionProvider` escucha para volver al login). Un fallo de
+  red o un 502 del servidor despertando se propagan sin echar al usuario;
 - convierte **todo** error a `AppError` antes de propagarlo;
 - registra con el logger, que **redacta** tokens y contraseñas.
 
@@ -290,6 +294,22 @@ toPage<T>(payload, page, limit); // → { items, meta } con meta completa
 toItem<T>(payload); // → T | null
 toAmount(value); // "15000.00" → 15000
 ```
+
+### Sesión y dispositivo
+
+El backend mantiene **una sesión por dispositivo** y **rota** el refresh token. De ahí tres
+reglas que no se pueden saltar:
+
+1. **El login manda `deviceId`** (obligatorio; sin él responde 400) y `deviceName`. Los dos
+   salen de `@/core/device/deviceIdentity`: un UUID v4 creado la primera vez y guardado en
+   `device_id`, más marca, modelo y sistema operativo. Nunca se arman a mano.
+2. **`device_id` NO se borra al cerrar sesión.** Identifica el aparato, no a la persona.
+3. **Nunca dispares dos renovaciones con el mismo refresh token.** El servidor lo lee como
+   un robo y cierra la sesión. El `single-flight` del cliente HTTP ya lo garantiza: no
+   llames al endpoint de refresh desde ningún otro sitio.
+
+El límite de intentos de login (5 por minuto) llega como **429** → `AppError('RATE_LIMITED')`.
+Se muestra el mensaje y **no se reintenta solo**.
 
 ### Sin conexión
 
@@ -316,7 +336,8 @@ negocios, clientes y tiendas del modo cliente.
 ### Errores
 
 **Un** modelo: `AppError` con `code` cerrado (`NETWORK`, `TIMEOUT`, `UNAUTHORIZED`,
-`FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION`, `SERVER`, `CANCELLED`, `UNKNOWN`),
+`FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION`, `RATE_LIMITED`, `SERVER`, `CANCELLED`,
+`UNKNOWN`),
 `title` y `message` **ya escritos para el usuario**, más `fieldErrors` cuando el backend
 dice qué campo falló. En un `catch`:
 
@@ -335,11 +356,12 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 
 | Método | Endpoint              | `x-business-id` | Módulo                                            |
 | ------ | --------------------- | --------------- | ------------------------------------------------- |
-| POST   | `/auth/login`         | —               | `authApi.login`                                   |
+| POST   | `/auth/login`         | —               | `authApi.login` (manda `deviceId` + `deviceName`) |
 | POST   | `/auth/logout`        | —               | `authApi.logout` (header `x-refresh-token`)       |
-| POST   | `/auth/refresh`       | —               | interceptor de `client.ts`                        |
+| POST   | `/auth/refresh`       | —               | interceptor de `client.ts` (header `x-device-id`) |
 | POST   | `/users`              | —               | `authApi.register`                                |
-| PATCH  | `/users/:id`          | —               | `authApi.updateProfile` / `updatePassword`        |
+| PATCH  | `/users/:id`          | —               | `authApi.updateProfile` (**solo** nombre y apellido) |
+| PATCH  | `/users/me/password`  | —               | `authApi.updatePassword` (pide la actual)         |
 | GET    | `/business`           | —               | `businessApi.list`                                |
 | POST   | `/business`           | —               | `businessApi.create`                              |
 | GET    | `/debtors`            | ✅              | `debtorApi.listByBusiness`                        |
@@ -356,6 +378,9 @@ Llaves de AsyncStorage (contrato, compatible con el v1): `auth_token`, `refresh_
 `auth_user`, más `active_business_id` y `app_mode`. Se acceden **solo** por `StorageKeys`,
 y las tres últimas se borran al cerrar sesión para que la siguiente cuenta del dispositivo
 no herede ni el negocio ni el modo.
+
+`device_id` es la excepción: se escribe una vez y **sobrevive al cierre de sesión**, porque
+identifica la instalación ante el backend (ver «Sesión y dispositivo»).
 
 ---
 
