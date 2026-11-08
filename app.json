@@ -13,7 +13,9 @@
       "bundleIdentifier": "com.yair77.appuntao",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["whatsapp"]
+        "LSApplicationQueriesSchemes": [
+          "whatsapp"
+        ]
       }
     },
     "android": {
@@ -47,7 +49,10 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "19e11994-fc54-46b6-a755-ac52f1ad8a14"
+      }
     },
     "owner": "yair77"
   }
