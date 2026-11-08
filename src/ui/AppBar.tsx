@@ -59,7 +59,7 @@ export const AppBar = ({
         styles.container,
         {
           paddingTop: insets.top + theme.spacing.xs,
-          backgroundColor: inverse ? 'transparent' : 'transparent',
+          backgroundColor: 'transparent',
         },
         bordered
           ? {

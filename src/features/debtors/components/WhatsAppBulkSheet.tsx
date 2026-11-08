@@ -7,7 +7,7 @@
  * confirma el envío desde WhatsApp. Esta hoja lo hace cómodo de dos formas:
  *  - fila por fila, tocando el ícono de WhatsApp de cada quien;
  *  - con el botón "Enviar a todos", que abre el primer chat pendiente y,
- *    cada vez que el tendero **vuelve** a Fiao (detectado con `AppState`,
+ *    cada vez que el tendero **vuelve** a Appuntao (detectado con `AppState`,
  *    porque abrir WhatsApp manda la app a segundo plano), abre solo el
  *    siguiente pendiente — sin que haya que tocar nada más en esta lista.
  * Ninguna de las dos formas envía sola: el "toque" que falta y no se puede
@@ -120,7 +120,7 @@ export const WhatsAppBulkSheet = ({
     }
   }, [allSent, stopAutoSending]);
 
-  // Detecta el regreso a Fiao tras abrir WhatsApp para avanzar solo la cola.
+  // Detecta el regreso a Appuntao tras abrir WhatsApp para avanzar solo la cola.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const cameBack = /inactive|background/.test(appStateRef.current) && nextState === 'active';

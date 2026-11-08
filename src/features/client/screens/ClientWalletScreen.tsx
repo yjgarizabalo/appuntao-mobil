@@ -293,8 +293,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   headerLogo: {
-    width: 76,
-    height: 30,
+    // El PNG es ~4:1 (1640×411): la caja 76×30 con `contain` lo dejaba en 76×19.
+    // Igual que en el login, ancho fijo + proporción del archivo; el tope en %
+    // deja sitio al selector de modo y al avatar en pantallas angostas.
+    width: 150,
+    maxWidth: '45%',
+    aspectRatio: 1640 / 411,
   },
   avatarButton: {
     width: 40,
@@ -302,7 +306,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: theme.color.fillInverse,
   },
   heroContext: {
     gap: theme.spacing.xs,
@@ -325,7 +329,7 @@ const styles = StyleSheet.create({
   heroStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: theme.color.fillInverseSubtle,
     borderRadius: theme.radius.lg,
     paddingVertical: theme.spacing.md,
   },

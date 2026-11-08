@@ -31,7 +31,7 @@ const SURFACES: Record<NonNullable<IconButtonProps['surface']>, ViewStyle> = {
   none: { backgroundColor: 'transparent' },
   soft: { backgroundColor: theme.color.surfaceSunken },
   solid: { backgroundColor: theme.color.surface, ...theme.shadow.xs },
-  inverse: { backgroundColor: 'rgba(255,255,255,0.12)' },
+  inverse: { backgroundColor: theme.color.fillInverse },
 };
 
 export const IconButton = ({

@@ -55,7 +55,7 @@ export const BusinessSwitcher = ({ inverse = false, style }: BusinessSwitcherPro
         style={[
           styles.trigger,
           {
-            backgroundColor: inverse ? 'rgba(255,255,255,0.12)' : theme.color.surface,
+            backgroundColor: inverse ? theme.color.fillInverse : theme.color.surface,
             borderColor: inverse ? theme.color.borderInverse : theme.color.border,
           },
           style,

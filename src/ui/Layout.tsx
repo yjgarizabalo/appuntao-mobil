@@ -239,7 +239,7 @@ export const StatTile = ({
       style={[
         styles.statTile,
         {
-          backgroundColor: inverse ? 'rgba(255,255,255,0.08)' : theme.color.surface,
+          backgroundColor: inverse ? theme.color.fillInverseSubtle : theme.color.surface,
           borderColor: inverse ? theme.color.borderInverse : theme.color.border,
         },
         style,

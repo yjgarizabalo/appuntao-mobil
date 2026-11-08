@@ -84,9 +84,9 @@ export const buildTeamInvite = ({ businessName, roleLabel, code }: TeamInviteInp
   const at = businessName ? ` a *${businessName}*` : '';
 
   return (
-    `¡Hola! 👋 Te invito a unirte${at} en *Fiao* como *${roleLabel}*.\n\n` +
+    `¡Hola! 👋 Te invito a unirte${at} en *Appuntao* como *${roleLabel}*.\n\n` +
     'Para entrar:\n' +
-    '1️⃣ Instala Fiao e ingresa con tu cuenta.\n' +
+    '1️⃣ Instala Appuntao e ingresa con tu cuenta.\n' +
     '2️⃣ Ve a *Perfil → Tengo un código*.\n' +
     `3️⃣ Escribe este código: *${code}*\n\n` +
     'El código vence en 7 días. ¡Te espero! 🙌'

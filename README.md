@@ -1,4 +1,6 @@
-# Fiao
+# Appuntao
+
+> Antes se llamaba **Fiao**. Repositorio: [yjgarizabalo/appuntao-mobil](https://github.com/yjgarizabalo/appuntao-mobil).
 
 App móvil para que un tendero lleve el control de lo que fía: quién le debe,
 cuánto, desde cuándo y qué ha abonado. Reemplaza el cuaderno del mostrador.

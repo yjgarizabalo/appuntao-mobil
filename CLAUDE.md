@@ -1,9 +1,15 @@
 # CLAUDE.m
 
-App móvil (Android + iPhone) para que tenderos lleven el control de los **vales / fiado**:
-clientes que compran a crédito, deudas que se acumulan y pagos que abonan ese saldo.
+**Appuntao** (antes «Fiao») — app móvil (Android + iPhone) para que tenderos lleven el
+control de los **vales / fiado**: clientes que compran a crédito, deudas que se acumulan y
+pagos que abonan ese saldo. Repositorio: `github.com/yjgarizabalo/appuntao-mobil`.
 
-Este proyecto es la **refactorización del v1** (`../fiao-mobil`), con el mismo backend y las
+> **Identificadores.** `slug` y `scheme` son `appuntao` y el package/bundle es
+> `com.yair77.appuntao` (antes `com.yair77.fiao`: es **otra app** para las tiendas, con su
+> propio keystore y su propio proyecto en EAS). Siguen con «fiao» **a propósito** las llaves
+> de AsyncStorage (incluido el prefijo `fiao_cache:`) y la URL del backend (`fiao-backend`):
+> la URL es la del servidor desplegado. No las renombres sin autorización explícita.
+
 mismas funcionalidades, pero con arquitectura por capas, design system propio y las versiones
 de React/Expo congeladas. El detalle de qué cambió y por qué está en
 `claude/migraciones/v1-a-v2-arquitectura.md`.
@@ -121,7 +127,7 @@ Tres capas, con dependencias en una sola dirección: `app/` → `features/` → 
 Nunca al revés (una feature no importa de otra feature; comparten a través de `domain` o `ui`).
 
 ```
-fiao-mobil-v2/
+appuntao-mobil-v2/
 ├── app/                      # SOLO declaraciones de ruta (expo-router)
 ├── src/
 │   ├── core/                 # infraestructura, sin nada de negocio
@@ -391,9 +397,33 @@ Los tokens están en `src/theme/tokens.ts` (escala cruda: `brand[500]`, `ink[800
 Los componentes consumen **roles**, nunca la escala. Cuando se agregue modo oscuro, basta
 cambiar lo que devuelve `useTheme()`.
 
-Identidad visual: base de neutros fríos (`ink`) con verde marca `#00B26B` para dinero y
-acciones primarias, rojo `#E14848` para deuda, ámbar para vencimientos. Los héroes usan el
-degradado `theme.gradient.hero`.
+Identidad visual (paleta de Appuntao). Los tres colores de marca son **los del logotipo**,
+medidos sobre `assets/images/icon.png`: la interfaz y el logo hablan el mismo azul.
+
+| Color          | Hex       | Token        | En el logo                         | Rol                                                   |
+| -------------- | --------- | ------------ | ---------------------------------- | ----------------------------------------------------- |
+| Azul principal | `#0066FF` | `brand[500]` | Fondo del cuaderno / ícono         | `brand`: acciones primarias, foco, color protagonista |
+| Azul oscuro    | `#0B2D6B` | `brand[800]` | Monograma y texto «puntao»         | `brandDeep`, `accentOn`: nombre de marca, detalles    |
+| Verde lima     | `#B6FF00` | `lime[500]`  | Check y detalles del cuaderno      | `accent`: checks y detalles sobre superficies oscuras |
+| Blanco frío    | `#F5F8FF` | `ink[50]`    | —                                  | `bg`: fondo de pantalla                               |
+
+El resto de cada escala se **deriva** de esos colores (claros mezclando con blanco, oscuros
+con `brand[800]` o con negro); si el logo cambia, se cambian los extremos y se recalcula la
+escala, no se retoca un tono suelto. `brand[500]` da 4.8:1 sobre blanco: alcanza para
+texto normal, pero nada más claro que `500` sirve como texto sobre blanco.
+
+Los neutros (`ink`) llevan un tinte azul para conversar con la marca. La lima **nunca** va
+como texto sobre blanco (1.2:1): se usa como relleno con texto `accentOn` (10.8:1) o como
+detalle sobre los héroes oscuros. Se conservan rojo `#E14848` para deuda, ámbar para
+vencimientos y verde `#00B26B` (`success`) para «pagado / al día». Los héroes usan el
+degradado `theme.gradient.hero` (azul casi negro → azul oscuro).
+
+- **`info` es cian (`#0891B2`), no azul**: un azul informativo se confunde con `brand` y un
+  aviso parece una acción. Su texto sólido es oscuro (`infoOn` = `ink[900]`).
+- **Sobre un héroe oscuro** no se escribe `rgba(...)`: los controles usan
+  `fillInverse` (blanco 12 %) y las zonas o tarjetas `fillInverseSubtle` (blanco 8 %).
+- **Colores de avatar** en `palette.avatar`: todos con texto blanco ≥ 3:1. Si se agrega uno,
+  se mide antes.
 
 ### Componentes (`import { … } from '@/ui'`)
 
@@ -443,7 +473,7 @@ Es un no-op en web y nunca lanza.
 - Secciones dentro de un archivo: `/* ── Título ─────── */`.
 - Estilos siempre en `StyleSheet.create` al final del archivo, con tokens del tema.
 - `console.log` está prohibido por lint: usa `createLogger('scope')`.
-- Commits: prefijo `[fiao]` + mensaje corto en minúsculas.
+- Commits: prefijo `[appuntao]` + mensaje corto en minúsculas.
 - **No hay tests configurados.** La verificación es `npm run typecheck` + `npm run lint` +
   `npx expo export` + prueba manual. No afirmes que "los tests pasan".
 
@@ -465,7 +495,7 @@ Ventaja: cambiar `app.json` (un plugin, un permiso, un icono) se refleja al rege
 editar Gradle a mano ni resolver conflictos en archivos nativos.
 
 - `app.json`: `newArchEnabled: true`, `edgeToEdgeEnabled: true` (Android),
-  `supportsTablet: true` (iOS), `orientation: portrait`, bundle/package `com.yair77.fiao`.
+  `supportsTablet: true` (iOS), `orientation: portrait`, bundle/package `com.yair77.appuntao`.
 - **EAS Build ya está configurado** (`eas.json` con los perfiles `development`, `preview` y
   `production`). Es lo que permite compilar el APK de demostración, y compilar iOS desde
   Windows sin tener un Mac. El detalle está en la **Fase 11**.
@@ -584,11 +614,11 @@ versiones del proyecto y un CLI de build no tiene por qué entrar en ese contrat
 
 ### 11.3 Los perfiles de `eas.json`
 
-| Perfil        | Artefacto Android   | Para qué                                                    |
-| ------------- | ------------------- | ----------------------------------------------------------- |
-| `development` | APK (debug)         | Development client: probar en dispositivo con Metro local   |
-| `preview`     | **APK**             | **Demostración a clientes**: se instala desde un link       |
-| `production`  | AAB (`app-bundle`)  | Subir a Google Play (Play solo acepta AAB)                  |
+| Perfil        | Artefacto Android  | Para qué                                                  |
+| ------------- | ------------------ | --------------------------------------------------------- |
+| `development` | APK (debug)        | Development client: probar en dispositivo con Metro local |
+| `preview`     | **APK**            | **Demostración a clientes**: se instala desde un link     |
+| `production`  | AAB (`app-bundle`) | Subir a Google Play (Play solo acepta AAB)                |
 
 `preview` y `production` usan `distribution: internal` / tienda respectivamente. Un **APK** se
 instala directo desde el link que devuelve EAS; un **AAB** no se puede instalar a mano, solo

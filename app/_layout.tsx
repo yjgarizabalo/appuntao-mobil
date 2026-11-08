@@ -24,7 +24,7 @@
  */
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { Platform } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -37,6 +37,18 @@ import { OfflineBanner, ToastProvider } from '@/ui';
 import { theme } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
+
+/*
+ * Ruido de desarrollo que no es de la app: en `__DEV__`, Expo envuelve la raíz
+ * con `withDevTools`, que llama a `useKeepAwake` para no apagar la pantalla
+ * mientras se programa. Esa promesa no tiene `catch`, y en Android falla si la
+ * app se recarga sin estar en primer plano («Unable to activate keep awake»).
+ * En producción `withDevTools` no se incluye en el bundle (verificado con
+ * `expo export`), así que esto solo silencia el aviso en desarrollo.
+ */
+if (__DEV__) {
+  LogBox.ignoreLogs(['Unable to activate keep awake']);
+}
 
 export default function RootLayout() {
   return (

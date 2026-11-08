@@ -84,7 +84,7 @@ export const ModeSwitcher = ({ inverse = false }: ModeSwitcherProps) => {
       <Sheet
         visible={isOpen}
         onClose={() => setIsOpen(false)}
-        title="¿Cómo quieres usar Fiao?"
+        title="¿Cómo quieres usar Appuntao?"
         subtitle="Una sola cuenta, los dos lados del mostrador."
       >
         <View style={styles.options}>
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
   },
   pillInverse: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: theme.color.fillInverse,
   },
   pillPlain: {
     backgroundColor: theme.color.brandSoft,

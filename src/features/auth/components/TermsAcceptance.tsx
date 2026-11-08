@@ -48,7 +48,7 @@ export const TermsAcceptance = ({ accepted, onChange, error }: TermsAcceptancePr
       checked={accepted}
       onChange={onChange}
       error={error}
-      label="He leído y acepto los Términos y Condiciones y la Política de Tratamiento de Datos Personales de fiao."
+      label="He leído y acepto los Términos y Condiciones y la Política de Tratamiento de Datos Personales de Appuntao."
     >
       {error ? null : (
         <Text variant="caption" color="textSubtle">

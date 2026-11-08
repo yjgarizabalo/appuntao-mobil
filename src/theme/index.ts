@@ -9,7 +9,7 @@
  */
 import { duration, fontWeight, layout, palette, radius, shadow, spacing, spring, typography } from './tokens';
 
-const { brand, ink, danger, warning, info } = palette;
+const { brand, lime, success, ink, danger, warning, info } = palette;
 
 const colors = {
   /* Superficies */
@@ -38,6 +38,16 @@ const colors = {
   borderStrong: ink[200],
   borderInverse: 'rgba(255,255,255,0.14)',
 
+  /*
+   * Rellenos sobre superficies oscuras (héroes con degradado). Son blanco
+   * translúcido y no un azul fijo para que tomen el tono del degradado que
+   * tengan debajo, sea cual sea.
+   */
+  /** Controles presionables: botón de perfil, selector de modo y de negocio. */
+  fillInverse: 'rgba(255,255,255,0.12)',
+  /** Zonas y tarjetas apoyadas en el héroe: estadísticas, `StatTile` inverso. */
+  fillInverseSubtle: 'rgba(255,255,255,0.08)',
+
   /* Marca */
   brand: brand[500],
   brandStrong: brand[600],
@@ -45,6 +55,14 @@ const colors = {
   brandSoft: brand[50],
   brandSoftStrong: brand[100],
   brandOn: ink[0],
+  /** Azul profundo del logotipo: nombre de marca y detalles oscuros. */
+  brandDeep: brand[800],
+
+  /* Acento lima: checks y detalles destacados, nunca texto sobre blanco. */
+  accent: lime[500],
+  accentStrong: lime[600],
+  accentSoft: lime[50],
+  accentOn: brand[800],
 
   /* Semántico */
   danger: danger[500],
@@ -62,13 +80,14 @@ const colors = {
   info: info[500],
   infoStrong: info[600],
   infoSoft: info[50],
-  infoOn: ink[0],
+  /** Texto sobre `info` sólido: el cian da 4.8:1 con `ink[900]` y solo 3.7:1 con blanco. */
+  infoOn: ink[900],
 
-  success: brand[500],
-  successSoft: brand[50],
+  success: success[500],
+  successSoft: success[50],
 
   /* Otros */
-  overlay: 'rgba(11, 15, 20, 0.6)',
+  overlay: 'rgba(10, 23, 54, 0.6)',
   skeleton: ink[100],
   skeletonHighlight: ink[50],
   disabled: ink[200],
@@ -77,14 +96,14 @@ const colors = {
 
 /** Degradados de marca. Se usan en los héroes de saldo y el splash. */
 const gradients = {
-  /** Oscuro con un toque verde: tarjeta principal de saldo. */
-  hero: [ink[900], '#0F2A20', brand[800]] as const,
-  /** Verde marca: estado "al día". */
+  /** Del azul casi negro al azul profundo de la libreta: tarjeta principal de saldo. */
+  hero: [ink[900], brand[800], brand[700]] as const,
+  /** Azul marca: botones y superficies destacadas. */
   brand: [brand[400], brand[600]] as const,
   /** Rojo suave: estado "en mora". */
   danger: [danger[500], danger[700]] as const,
   /** Velo para leer texto sobre una imagen. */
-  scrim: ['rgba(11,15,20,0)', 'rgba(11,15,20,0.75)'] as const,
+  scrim: ['rgba(10,23,54,0)', 'rgba(10,23,54,0.75)'] as const,
 } as const;
 
 export const theme = {

@@ -61,7 +61,7 @@ export interface LegalDocument {
 
 export const TERMS: LegalDocument = {
   title: 'Términos y Condiciones y Política de Tratamiento de Datos Personales',
-  version: '2026-10-14',
+  version: '2026-11-02',
   effectiveFrom: '14 de octubre de 2026',
 
   sections: [
@@ -73,19 +73,19 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'Estos Términos y Condiciones regulan el acceso, registro y uso de la ' +
-            'aplicación móvil fiao (en adelante, "fiao" o la "Aplicación").',
+            'aplicación móvil Appuntao (en adelante, "Appuntao" o la "Aplicación").',
         },
         {
           kind: 'text',
           text:
-            'fiao es una herramienta digital dirigida a pequeños comerciantes que permite ' +
+            'Appuntao es una herramienta digital dirigida a pequeños comerciantes que permite ' +
             'gestionar información relacionada con clientes, ventas a crédito, cuentas por ' +
             'cobrar, abonos y saldos pendientes.',
         },
         {
           kind: 'text',
           text:
-            'Al registrarse, acceder o utilizar fiao, el Usuario declara que ha leído, ' +
+            'Al registrarse, acceder o utilizar Appuntao, el Usuario declara que ha leído, ' +
             'comprendido y aceptado estos Términos y Condiciones y la Política de ' +
             'Tratamiento de Datos Personales.',
         },
@@ -100,8 +100,8 @@ export const TERMS: LegalDocument = {
         {
           kind: 'bullets',
           items: [
-            '"Usuario": persona que crea una cuenta y utiliza fiao.',
-            '"Cliente": persona registrada por el Usuario dentro de fiao para gestionar ' +
+            '"Usuario": persona que crea una cuenta y utiliza Appuntao.',
+            '"Cliente": persona registrada por el Usuario dentro de Appuntao para gestionar ' +
               'información relacionada con ventas a crédito, obligaciones o pagos.',
             '"Datos personales": cualquier información que permita identificar o hacer ' +
               'identificable a una persona.',
@@ -115,12 +115,12 @@ export const TERMS: LegalDocument = {
 
     {
       number: '3',
-      title: 'Objeto de fiao',
+      title: 'Objeto de Appuntao',
       blocks: [
         {
           kind: 'text',
           text:
-            'fiao proporciona herramientas digitales para facilitar la organización y ' +
+            'Appuntao proporciona herramientas digitales para facilitar la organización y ' +
             'administración de cuentas por cobrar.',
         },
         { kind: 'text', text: 'La Aplicación permite, entre otras funcionalidades:' },
@@ -140,7 +140,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao actúa como una herramienta de gestión y organización de información. El ' +
+            'Appuntao actúa como una herramienta de gestión y organización de información. El ' +
             'Usuario es responsable de la información que registra y de las relaciones ' +
             'comerciales que mantiene con sus clientes.',
         },
@@ -154,7 +154,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'Para utilizar determinadas funcionalidades de fiao, el Usuario deberá crear ' +
+            'Para utilizar determinadas funcionalidades de Appuntao, el Usuario deberá crear ' +
             'una cuenta y proporcionar información verdadera, completa y actualizada.',
         },
         {
@@ -166,13 +166,13 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'El Usuario deberá informar a fiao cuando sospeche que sus credenciales han ' +
+            'El Usuario deberá informar a Appuntao cuando sospeche que sus credenciales han ' +
             'sido utilizadas sin autorización.',
         },
         {
           kind: 'text',
           text:
-            'fiao podrá solicitar información adicional cuando sea necesaria para validar ' +
+            'Appuntao podrá solicitar información adicional cuando sea necesaria para validar ' +
             'la identidad del Usuario, proteger la seguridad de la cuenta o cumplir ' +
             'obligaciones legales.',
         },
@@ -207,7 +207,7 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'El Usuario deberá registrar únicamente información que sea pertinente, ' +
-            'necesaria y adecuada para la finalidad para la cual utiliza fiao.',
+            'necesaria y adecuada para la finalidad para la cual utiliza Appuntao.',
         },
       ],
     },
@@ -219,7 +219,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'El Usuario reconoce que, al registrar información de terceros en fiao, debe ' +
+            'El Usuario reconoce que, al registrar información de terceros en Appuntao, debe ' +
             'contar con una base legal válida para realizar dicho tratamiento y cumplir ' +
             'con las obligaciones aplicables en materia de protección de datos personales.',
         },
@@ -233,7 +233,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao no será responsable por la información que el Usuario registre de manera ' +
+            'Appuntao no será responsable por la información que el Usuario registre de manera ' +
             'incorrecta, ilegal, desactualizada, excesiva o sin contar con la autorización ' +
             'o fundamento jurídico correspondiente.',
         },
@@ -247,7 +247,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'Los datos personales recopilados a través de fiao podrán ser tratados para ' +
+            'Los datos personales recopilados a través de Appuntao podrán ser tratados para ' +
             'las siguientes finalidades:',
         },
         {
@@ -265,7 +265,7 @@ export const TERMS: LegalDocument = {
             'Realizar búsquedas dentro de la información registrada.',
             'Enviar notificaciones relacionadas con el funcionamiento de la Aplicación.',
             'Brindar soporte al Usuario.',
-            'Mejorar, mantener y desarrollar las funcionalidades de fiao.',
+            'Mejorar, mantener y desarrollar las funcionalidades de Appuntao.',
             'Detectar, prevenir y gestionar actividades fraudulentas, abusivas o no ' +
               'autorizadas.',
             'Cumplir obligaciones legales, regulatorias o requerimientos de autoridades ' +
@@ -282,7 +282,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao realizará el tratamiento de los datos personales de acuerdo con la ' +
+            'Appuntao realizará el tratamiento de los datos personales de acuerdo con la ' +
             'legislación colombiana aplicable en materia de protección de datos personales.',
         },
         {
@@ -296,7 +296,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao implementará medidas razonables de carácter técnico, administrativo y ' +
+            'Appuntao implementará medidas razonables de carácter técnico, administrativo y ' +
             'organizacional orientadas a proteger la información contra pérdida, acceso no ' +
             'autorizado, alteración, divulgación o uso indebido.',
         },
@@ -310,7 +310,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao no solicita de manera general datos personales sensibles para el ' +
+            'Appuntao no solicita de manera general datos personales sensibles para el ' +
             'funcionamiento básico de la Aplicación.',
         },
         {
@@ -324,7 +324,7 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'Si alguna funcionalidad futura requiere el tratamiento de datos sensibles, ' +
-            'fiao informará previamente al Usuario y adoptará las medidas y autorizaciones ' +
+            'Appuntao informará previamente al Usuario y adoptará las medidas y autorizaciones ' +
             'exigidas por la legislación aplicable.',
         },
       ],
@@ -334,7 +334,7 @@ export const TERMS: LegalDocument = {
       number: '10',
       title: 'Datos de menores de edad',
       blocks: [
-        { kind: 'text', text: 'fiao no está dirigida a menores de edad.' },
+        { kind: 'text', text: 'Appuntao no está dirigida a menores de edad.' },
         {
           kind: 'text',
           text:
@@ -399,7 +399,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao atenderá las consultas y reclamos dentro de los términos establecidos por ' +
+            'Appuntao atenderá las consultas y reclamos dentro de los términos establecidos por ' +
             'la legislación colombiana aplicable.',
         },
       ],
@@ -412,7 +412,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao conservará los datos personales durante el tiempo que resulte necesario ' +
+            'Appuntao conservará los datos personales durante el tiempo que resulte necesario ' +
             'para cumplir las finalidades para las cuales fueron recopilados, atender ' +
             'obligaciones legales, resolver posibles controversias y cumplir otros deberes ' +
             'legítimos relacionados con la prestación del servicio.',
@@ -434,7 +434,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao implementará medidas de seguridad razonables para proteger la información ' +
+            'Appuntao implementará medidas de seguridad razonables para proteger la información ' +
             'almacenada en sus sistemas.',
         },
         {
@@ -459,7 +459,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'Para operar fiao, determinados servicios tecnológicos podrán ser prestados por ' +
+            'Para operar Appuntao, determinados servicios tecnológicos podrán ser prestados por ' +
             'terceros especializados, incluyendo proveedores de infraestructura, ' +
             'almacenamiento, bases de datos, autenticación, comunicaciones, analítica u ' +
             'otros servicios necesarios para el funcionamiento de la Aplicación.',
@@ -468,7 +468,7 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'Cuando sea necesario compartir o transmitir información a dichos proveedores, ' +
-            'fiao procurará establecer las medidas contractuales, técnicas y ' +
+            'Appuntao procurará establecer las medidas contractuales, técnicas y ' +
             'organizacionales correspondientes para proteger los datos personales y ' +
             'limitar su tratamiento a las finalidades aplicables.',
         },
@@ -483,7 +483,7 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'El Usuario y los titulares de datos podrán utilizar los canales oficiales ' +
-            'habilitados por fiao para realizar consultas, solicitudes, reclamos o ejercer ' +
+            'habilitados por Appuntao para realizar consultas, solicitudes, reclamos o ejercer ' +
             'sus derechos relacionados con el tratamiento de datos personales.',
         },
         { kind: 'text', text: 'Correo electrónico: soporte@elfiao.com' },
@@ -498,7 +498,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'El Usuario se compromete a utilizar fiao de manera lícita, responsable y ' +
+            'El Usuario se compromete a utilizar Appuntao de manera lícita, responsable y ' +
             'conforme a estos Términos y Condiciones.',
         },
         { kind: 'text', text: 'Está prohibido utilizar la Aplicación para:' },
@@ -524,13 +524,13 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'La información registrada en fiao corresponde a los datos proporcionados por ' +
+            'La información registrada en Appuntao corresponde a los datos proporcionados por ' +
             'el Usuario.',
         },
         {
           kind: 'text',
           text:
-            'fiao no determina por sí misma la existencia, validez, exigibilidad o cuantía ' +
+            'Appuntao no determina por sí misma la existencia, validez, exigibilidad o cuantía ' +
             'de una obligación entre el Usuario y sus clientes.',
         },
         {
@@ -555,13 +555,13 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao proporciona una herramienta tecnológica para facilitar la gestión de ' +
+            'Appuntao proporciona una herramienta tecnológica para facilitar la gestión de ' +
             'información comercial.',
         },
         {
           kind: 'text',
           text:
-            'fiao no garantiza que la utilización de la Aplicación produzca el pago de las ' +
+            'Appuntao no garantiza que la utilización de la Aplicación produzca el pago de las ' +
             'obligaciones registradas, ni interviene necesariamente en las relaciones ' +
             'comerciales entre el Usuario y sus clientes.',
         },
@@ -581,7 +581,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao procurará mantener la Aplicación disponible y funcionando correctamente.',
+            'Appuntao procurará mantener la Aplicación disponible y funcionando correctamente.',
         },
         {
           kind: 'text',
@@ -589,12 +589,12 @@ export const TERMS: LegalDocument = {
             'Sin embargo, pueden presentarse interrupciones ocasionadas por mantenimiento, ' +
             'actualizaciones, fallas técnicas, problemas de conectividad, servicios de ' +
             'terceros, eventos de fuerza mayor u otras circunstancias fuera del control ' +
-            'razonable de fiao.',
+            'razonable de Appuntao.',
         },
         {
           kind: 'text',
           text:
-            'fiao podrá realizar actualizaciones, modificaciones o mejoras a la Aplicación ' +
+            'Appuntao podrá realizar actualizaciones, modificaciones o mejoras a la Aplicación ' +
             'cuando lo considere necesario.',
         },
       ],
@@ -607,7 +607,7 @@ export const TERMS: LegalDocument = {
         {
           kind: 'text',
           text:
-            'fiao podrá actualizar estos Términos y Condiciones y su Política de ' +
+            'Appuntao podrá actualizar estos Términos y Condiciones y su Política de ' +
             'Tratamiento de Datos Personales cuando resulte necesario.',
         },
         {
@@ -634,12 +634,12 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'El Usuario podrá solicitar la cancelación de su cuenta de acuerdo con los ' +
-            'mecanismos habilitados por fiao.',
+            'mecanismos habilitados por Appuntao.',
         },
         {
           kind: 'text',
           text:
-            'fiao podrá suspender o cancelar una cuenta cuando exista incumplimiento de ' +
+            'Appuntao podrá suspender o cancelar una cuenta cuando exista incumplimiento de ' +
             'estos Términos y Condiciones, uso fraudulento, actividad ilícita, riesgos de ' +
             'seguridad o cuando resulte necesario para proteger la Aplicación, a sus ' +
             'usuarios o cumplir obligaciones legales.',
@@ -655,14 +655,14 @@ export const TERMS: LegalDocument = {
           kind: 'text',
           text:
             'La Aplicación, su diseño, marca, logotipos, código, interfaces, contenidos, ' +
-            'funcionalidades y demás elementos asociados a fiao pertenecen a sus ' +
+            'funcionalidades y demás elementos asociados a Appuntao pertenecen a sus ' +
             'respectivos titulares y se encuentran protegidos por las normas aplicables de ' +
             'propiedad intelectual.',
         },
         {
           kind: 'text',
           text:
-            'El uso de fiao no concede al Usuario derechos de propiedad sobre la ' +
+            'El uso de Appuntao no concede al Usuario derechos de propiedad sobre la ' +
             'Aplicación ni sobre sus elementos.',
         },
       ],
@@ -674,7 +674,7 @@ export const TERMS: LegalDocument = {
       blocks: [
         {
           kind: 'text',
-          text: 'Al crear una cuenta, acceder o utilizar fiao, el Usuario declara que:',
+          text: 'Al crear una cuenta, acceder o utilizar Appuntao, el Usuario declara que:',
         },
         {
           kind: 'bullets',
@@ -683,7 +683,7 @@ export const TERMS: LegalDocument = {
             'Comprende su contenido.',
             'Acepta las condiciones de uso de la Aplicación.',
             'Comprende las condiciones relacionadas con el tratamiento de datos personales.',
-            'Se compromete a utilizar fiao de manera lícita y responsable.',
+            'Se compromete a utilizar Appuntao de manera lícita y responsable.',
           ],
         },
       ],
@@ -718,7 +718,7 @@ export const TERMS: LegalDocument = {
           text:
             'Los presentes Términos y Condiciones y la Política de Tratamiento de Datos ' +
             'Personales se encuentran vigentes a partir del 14 de octubre de 2026 y ' +
-            'permanecerán vigentes mientras el Usuario utilice fiao, salvo que sean ' +
+            'permanecerán vigentes mientras el Usuario utilice Appuntao, salvo que sean ' +
             'modificados o reemplazados conforme a las disposiciones aquí establecidas.',
         },
       ],
@@ -726,7 +726,7 @@ export const TERMS: LegalDocument = {
   ],
 
   contact: {
-    name: 'fiao',
+    name: 'Appuntao',
     tagline: 'Organiza tus cuentas por cobrar de forma fácil y segura.',
     website: 'https://elfiao.com/',
     email: 'soporte@elfiao.com',

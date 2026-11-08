@@ -214,8 +214,11 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xxs,
   },
   logo: {
-    width: 148,
-    height: 60,
+    // El PNG es ~4:1 (1640×411): con 148×60 `contain` lo dejaba en 148×37.
+    // Se fija el ancho y la proporción del archivo para que llene la caja.
+    width: 235,
+    maxWidth: '70%',
+    aspectRatio: 1640 / 411,
     marginBottom: theme.spacing.md,
   },
   tagline: {

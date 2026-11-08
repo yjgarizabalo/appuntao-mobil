@@ -50,6 +50,13 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
   el backend pasó a rotar el refresh token y a manejar una sesión por dispositivo; la app
   aprendió a renovar antes de que venza, a no cerrar sesión por un bache de red y a pedir
   la contraseña actual para cambiarla. Incluye lo que quedó sin probar contra el servidor.
+- [**2026-10-31-renombre-appuntao-y-paleta.md**](bitacora/2026-10-31-renombre-appuntao-y-paleta.md) —
+  Fiao pasa a llamarse Appuntao: qué identificadores se conservaron y por qué, y cómo se
+  mapeó la paleta nueva a los tokens.
+- [**2026-11-08-paleta-del-logo.md**](bitacora/2026-11-08-paleta-del-logo.md) — los colores
+  de marca pasan a ser los exactos del logotipo (`#0066FF`, `#0B2D6B`, `#B6FF00`): cómo se
+  midieron, cómo se derivaron las escalas y el contraste resultante. También: `info` pasa a
+  cian y desaparecen los colores literales fuera del tema.
 
 ---
 

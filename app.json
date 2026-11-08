@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "fiao",
-    "slug": "fiao",
+    "name": "appuntao",
+    "slug": "appuntao",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "fiao",
+    "scheme": "appuntao",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yair77.fiao",
+      "bundleIdentifier": "com.yair77.appuntao",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "LSApplicationQueriesSchemes": ["whatsapp"]
@@ -22,7 +22,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yair77.fiao"
+      "package": "com.yair77.appuntao"
     },
     "web": {
       "bundler": "metro",
@@ -37,7 +37,7 @@
           "image": "./assets/images/icon-blanco.png",
           "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#0B0F14"
+          "backgroundColor": "#0A1736"
         }
       ],
       "expo-font",
@@ -47,10 +47,7 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "56bf5fd1-2c39-45d5-803a-6905a6d28280"
-      }
+      "router": {}
     },
     "owner": "yair77"
   }

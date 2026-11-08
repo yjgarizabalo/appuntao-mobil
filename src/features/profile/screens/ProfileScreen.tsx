@@ -39,8 +39,10 @@ import {
   useToast,
 } from '@/ui';
 import { theme } from '@/theme';
+import { TERMS } from '@/domain/legal';
 
-const SUPPORT_EMAIL = 'soporte@fiao.app';
+// El mismo correo que publican los términos: una sola fuente para que no se desincronicen.
+const SUPPORT_EMAIL = TERMS.contact.email;
 
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
@@ -86,7 +88,7 @@ export const ProfileScreen = () => {
 
   const handleSupport = () => {
     void Linking.openURL(
-      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Ayuda con Fiao')}`,
+      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Ayuda con Appuntao')}`,
     ).catch(() => toast.info(`Escríbenos a ${SUPPORT_EMAIL}`));
   };
 
@@ -276,7 +278,7 @@ export const ProfileScreen = () => {
         </Card>
 
         <Text variant="caption" color="textSubtle" align="center" style={styles.version}>
-          Fiao v2.0.0
+          Appuntao v2.0.0
           {env.environment === 'prd' ? '' : ` · ${env.environment}`}
         </Text>
       </View>

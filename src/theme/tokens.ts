@@ -1,5 +1,5 @@
 /**
- * Design tokens de Fiao.
+ * Design tokens de Appuntao.
  *
  * Única fuente de verdad de color, espaciado, tipografía, radios y sombras.
  * Ningún componente debe escribir un hex, un padding o un tamaño de letra
@@ -12,33 +12,71 @@ import { Platform, type TextStyle, type ViewStyle } from 'react-native';
  * Escalas crudas
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** Verde marca: dinero, saldo al día, acciones primarias. */
+/**
+ * Azul marca de Appuntao: acciones primarias, foco y héroes.
+ *
+ * Los dos extremos son los colores exactos del logotipo (medidos sobre
+ * `assets/images/icon.png`): `500` es el azul principal del cuaderno
+ * (#0066FF) y `800` el azul oscuro del monograma y de «puntao» (#0B2D6B).
+ * Los tonos claros (50–400) mezclan `500` con blanco y los oscuros (600–700)
+ * lo mezclan con `800`, para que toda la escala sea de la misma familia.
+ *
+ * Contraste con blanco: `500` 4.8:1 (AA para texto normal), `600` 6.2:1,
+ * `700` 7.9:1. Por debajo de `500` ya no sirve para texto sobre blanco.
+ */
 const brand = {
-  50: '#E8FAF1',
-  100: '#C6F2DE',
-  200: '#8FE6BF',
-  300: '#4FD69C',
-  400: '#17C480',
-  500: '#00B26B',
-  600: '#009459',
-  700: '#007647',
-  800: '#005634',
+  50: '#EBF3FF',
+  100: '#D4E5FF',
+  200: '#A8CBFF',
+  300: '#73ABFF',
+  400: '#3888FF',
+  500: '#0066FF',
+  600: '#0358DA',
+  700: '#064AB5',
+  800: '#0B2D6B',
 } as const;
 
-/** Neutros fríos. `ink` se usa para texto y superficies oscuras. */
+/**
+ * Lima de acento: el check y los detalles del cuaderno (#B6FF00, el color
+ * exacto del logo). Sobre blanco da 1.2:1, así que **nunca** es texto: va
+ * como relleno con texto en azul oscuro (10.8:1) o como detalle sobre
+ * superficies oscuras (14.5:1 sobre `ink[900]`). Los claros mezclan con
+ * blanco y los oscuros con negro.
+ */
+const lime = {
+  50: '#F8FFE6',
+  100: '#EBFFB8',
+  300: '#D2FF61',
+  500: '#B6FF00',
+  600: '#95D100',
+  700: '#6D9900',
+} as const;
+
+/** Verde de éxito: deuda pagada, cliente al día. */
+const success = {
+  50: '#E8FAF1',
+  100: '#C6F2DE',
+  500: '#00B26B',
+  600: '#009459',
+} as const;
+
+/**
+ * Neutros fríos con tinte azul, para que el gris converse con la marca.
+ * `50` es el blanco frío de la paleta (#F5F8FF): fondo de pantalla.
+ */
 const ink = {
   0: '#FFFFFF',
-  25: '#FAFBFC',
-  50: '#F4F6F8',
-  100: '#E8ECF0',
-  200: '#D3DAE1',
-  300: '#B0BAC5',
-  400: '#8592A0',
-  500: '#63707E',
-  600: '#495663',
-  700: '#333E4A',
-  800: '#1D262F',
-  900: '#0B0F14',
+  25: '#FAFBFF',
+  50: '#F5F8FF',
+  100: '#E6ECF7',
+  200: '#CFD8E8',
+  300: '#A9B5CB',
+  400: '#7E8BA5',
+  500: '#5B6782',
+  600: '#434E68',
+  700: '#2E3850',
+  800: '#17213A',
+  900: '#0A1736',
 } as const;
 
 /** Rojo de deuda / acciones destructivas. */
@@ -60,15 +98,45 @@ const warning = {
   700: '#A66C05',
 } as const;
 
-/** Azul informativo. */
+/**
+ * Cian informativo: avisos neutros, roles y badges de «próximamente».
+ *
+ * Es cian y no azul a propósito: con la marca en #0066FF, un azul informativo
+ * (antes #3B82F6) se confundía con `brand` y un badge de aviso parecía una
+ * acción. El cian queda entre la marca y el verde de éxito sin pisar a
+ * ninguno. Contraste: `600` sobre `50` 4.9:1 (texto de badge, AA); `500`
+ * sobre `50` 3.4:1 (íconos, ≥ 3:1); `100` sobre `ink[900]` 14.3:1 (toast).
+ */
 const info = {
-  50: '#EAF2FF',
-  100: '#D0E1FF',
-  500: '#3B82F6',
-  600: '#2563EB',
+  50: '#E8F8FC',
+  100: '#C7EEF7',
+  500: '#0891B2',
+  600: '#0E7490',
 } as const;
 
-export const palette = { brand, ink, danger, warning, info } as const;
+/**
+ * Colores de avatar: el fondo de las iniciales de cada cliente.
+ *
+ * Son una lista y no una escala porque se eligen por hash del nombre: lo que
+ * importa es que se distingan **entre sí** y que todos lleven texto blanco
+ * legible. Las iniciales van en negrita, así que el mínimo es 3:1 (texto
+ * grande); el más bajo de la lista es el teal, con 3.1:1. El ámbar es
+ * `warning[700]` y no `500`: con blanco, `500` daba 2.0:1 y no se leía.
+ * Incluye dos tonos de la marca para que la lista se sienta de la casa; el
+ * resto son vecinos fríos y cálidos, sin llegar a ser un arcoíris.
+ */
+const avatar = [
+  brand[500],
+  '#5B7CFA',
+  '#7C5CF5',
+  '#C4479B',
+  '#E0714A',
+  warning[700],
+  '#0FA3A3',
+  brand[700],
+] as const;
+
+export const palette = { brand, lime, success, ink, danger, warning, info, avatar } as const;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Espaciado — escala de 4pt

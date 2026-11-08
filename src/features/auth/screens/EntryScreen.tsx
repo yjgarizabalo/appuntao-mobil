@@ -122,7 +122,7 @@ const BrandSplash = () => {
       </View>
 
       <Animated.View style={[styles.spinner, spinnerStyle]}>
-        <ActivityIndicator color={theme.palette.brand[300]} />
+        <ActivityIndicator color={theme.color.accent} />
       </Animated.View>
     </LinearGradient>
   );

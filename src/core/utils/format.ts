@@ -160,20 +160,8 @@ export const formatPhone = (value: string): string => {
 
 /* ── Avatares ─────────────────────────────────────────────────────────────── */
 
-/**
- * Paleta de avatares. Los colores son de la misma familia visual que la marca
- * para que una lista de clientes no parezca un arcoíris.
- */
-const AVATAR_COLORS = [
-  palette.brand[500],
-  '#5B7CFA',
-  '#7C5CF5',
-  '#C4479B',
-  '#E0714A',
-  palette.warning[500],
-  '#0FA3A3',
-  '#3B82F6',
-] as const;
+/** Los colores viven en el tema (`palette.avatar`); aquí solo se elige uno. */
+const AVATAR_COLORS = palette.avatar;
 
 /** Color estable por nombre: el mismo cliente siempre tiene el mismo color. */
 export const getAvatarColor = (name: string): string => {
