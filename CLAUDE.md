@@ -94,7 +94,7 @@ Todo vive en `src/domain/`:
 | `constants.ts` | `DocumentType`, `PaymentMethod`, `DebtStatus`, `TransactionType` + etiquetas en español |
 | `models.ts`    | Entidades (`User`, `Business`, `Debtor`, `Debt`, `Payment`) y funciones de dominio      |
 | `mappers.ts`   | Traducción de las respuestas del backend a los modelos                                  |
-| `legal.ts`     | Términos y Condiciones: el documento que se acepta al registrarse, con su versión        |
+| `legal.ts`     | Documentos legales del backend (tipos abiertos: los define su catálogo), públicos, contacto y el intérprete de su Markdown |
 
 Funciones de dominio que hay que usar en vez de recalcular en la pantalla:
 
@@ -151,7 +151,7 @@ appuntao-mobil-v2/
 │       ├── client/           # modo cliente: api · state · components · screens
 │       ├── debtors/          # api · components · screens
 │       ├── debts/            # api · components
-│       ├── legal/            # términos y condiciones: components · screens
+│       ├── legal/            # documentos legales: api · components · screens
 │       ├── payments/         # api · components
 │       ├── home/             # screens
 │       └── profile/          # screens
@@ -204,7 +204,8 @@ Así la pantalla se puede mover, reutilizar o probar sin pelear con el enrutador
 | `/movements`         | `app/(app)/(client)/movements.tsx` | Modo cliente: extracto de todas las tiendas         |
 | `/me`                | `app/(app)/(client)/me.tsx`        | Modo cliente: perfil (igual que `/profile`)         |
 | `/store/[id]`        | `app/(app)/store/[id].tsx`         | Modo cliente: mi cuenta en una tienda               |
-| `/legal/terms`       | `app/legal/terms.tsx`             | Términos y condiciones y tratamiento de datos        |
+| `/legal`             | `app/legal/index.tsx`             | Lista de documentos legales vigentes                 |
+| `/legal/[type]`      | `app/legal/[type].tsx`            | Documento legal vigente; `type` = código del catálogo |
 | —                    | `app/+not-found.tsx`              | Ruta inexistente (deep link roto)                    |
 
 Reglas:
@@ -216,6 +217,14 @@ Reglas:
 - Los grupos `(auth)`, `(app)`, `(tabs)` no aparecen en la URL; sirven para colgar layouts.
 - `app/(app)/_layout.tsx` es la **guardia de sesión**: sin sesión redirige a `/login`.
   `app/(auth)/_layout.tsx` hace lo contrario. Ninguna pantalla debe comprobar la sesión.
+- `app/(app)/_layout.tsx` envuelve la app en `LegalGate`: si el backend dice que hay
+  documentos legales vigentes sin aceptar, se muestra la pantalla de aceptación en lugar
+  de la app. Sin red no bloquea.
+- **La app no tiene lista de tipos de documento legal.** El backend tiene un catálogo
+  (`LegalDocumentKind`) y cada documento llega con `title`, `audience` y `required`.
+  Nunca filtres por tipos conocidos ni pongas etiquetas por tipo: si el backend agrega
+  uno, la app lo muestra sola, y si lo descartara mandaría menos aceptaciones de las que
+  el backend exige.
 - `app/legal/` cuelga de la **raíz**, no de `(auth)` ni de `(app)`: un documento legal se
   lee antes de tener cuenta y también después, y esos dos grupos redirigen según la
   sesión. Cualquier pantalla que deba verse desde los dos lados va ahí.
@@ -365,11 +374,14 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 | POST   | `/auth/login`         | —               | `authApi.login` (manda `deviceId` + `deviceName`) |
 | POST   | `/auth/logout`        | —               | `authApi.logout` (header `x-refresh-token`)       |
 | POST   | `/auth/refresh`       | —               | interceptor de `client.ts` (header `x-device-id`) |
-| POST   | `/users`              | —               | `authApi.register`                                |
+| POST   | `/users`              | —               | `authApi.register` (manda `acceptedLegalDocumentIds`) |
+| GET    | `/legal/current`      | —               | `legalApi.current` · `forRegistration` (`?audience=ALL_USERS`) · `forBusiness` (`?audience=BUSINESS_OWNERS`); público, sin caché |
+| GET    | `/legal/pending`      | —               | `legalApi.pending` (lo consulta `LegalGate`)      |
+| POST   | `/legal/accept`       | —               | `legalApi.accept`                                 |
 | PATCH  | `/users/:id`          | —               | `authApi.updateProfile` (**solo** nombre y apellido) |
 | PATCH  | `/users/me/password`  | —               | `authApi.updatePassword` (pide la actual)         |
 | GET    | `/business`           | —               | `businessApi.list`                                |
-| POST   | `/business`           | —               | `businessApi.create`                              |
+| POST   | `/business`           | —               | `businessApi.create` (manda `acceptedLegalDocumentIds`) |
 | GET    | `/debtors`            | ✅              | `debtorApi.listByBusiness`                        |
 | GET    | `/debtors/me/all`     | —               | `debtorApi.listAll`                               |
 | GET    | `/debtors/:id`        | ✅              | `debtorApi.getById`                               |

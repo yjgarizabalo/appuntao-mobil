@@ -19,6 +19,12 @@ import {
   isBusinessRole,
   isDocumentType,
 } from './constants';
+import {
+  LEGAL_AUDIENCES,
+  type LegalAudience,
+  type LegalDocument,
+  type LegalDocumentSummary,
+} from './legal';
 import type {
   Business,
   BusinessSummary,
@@ -281,3 +287,45 @@ export const mapClientAccount = (raw: unknown): ClientAccount => {
     phone: data.phone == null ? undefined : asString(data.phone),
   };
 };
+
+/* ── Documentos legales ───────────────────────────────────────────────────── */
+
+/**
+ * Resumen de un documento (`pendingLegalDocuments` del login). Los tipos no se
+ * filtran: el catálogo es del backend, y descartar uno que la app no conoce
+ * haría que se envíen menos aceptaciones de las que exige. Sin `title`, se
+ * muestra el código antes que nada.
+ */
+export const mapLegalSummary = (raw: unknown): LegalDocumentSummary | null => {
+  const data = (raw ?? {}) as Raw;
+  const id = asString(data.id);
+  const type = asString(data.type);
+  if (!id || !type) return null;
+  return { id, type, version: asString(data.version), title: asString(data.title) || type };
+};
+
+const LEGAL_AUDIENCE_VALUES: readonly string[] = Object.values(LEGAL_AUDIENCES);
+
+/** Documento completo de `GET /legal/current` o `GET /legal/pending`. */
+export const mapLegalDocument = (raw: unknown): LegalDocument | null => {
+  const summary = mapLegalSummary(raw);
+  if (!summary) return null;
+  const data = raw as Raw;
+  const audience = asString(data.audience);
+  return {
+    ...summary,
+    audience: LEGAL_AUDIENCE_VALUES.includes(audience) ? (audience as LegalAudience) : null,
+    // Ante la duda, obligatorio: pedir de más se corrige con un toque; de menos, no.
+    required: data.required !== false,
+    content: asString(data.content),
+    contentHash: asString(data.contentHash),
+    url: data.url == null ? null : asString(data.url),
+    publishedAt: asString(data.publishedAt),
+  };
+};
+
+/** Lista de documentos, sin los que no se pudieron interpretar. */
+export const mapLegalDocuments = (payload: unknown): LegalDocument[] =>
+  toList<unknown>(payload)
+    .map(mapLegalDocument)
+    .filter((doc): doc is LegalDocument => doc !== null);

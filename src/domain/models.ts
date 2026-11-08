@@ -98,6 +98,11 @@ export interface Invitation {
 export interface BusinessDraft {
   name: string;
   address: string;
+  /**
+   * Documentos para negocios que se aceptan al crearlo
+   * (`GET /legal/current?audience=BUSINESS_OWNERS`).
+   */
+  acceptedLegalDocumentIds?: string[];
 }
 
 /**

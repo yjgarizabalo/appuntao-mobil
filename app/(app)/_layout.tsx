@@ -15,12 +15,16 @@
  * layout solo los declara. Las pantallas de detalle (`client/[id]` del
  * tendero, `store/[id]` del cliente) son hermanas de los dos grupos para que
  * al volver atrás se regrese a la pestaña correcta.
+ *
+ * Todo va envuelto en `LegalGate`: si el usuario tiene documentos legales
+ * vigentes sin aceptar, ve la pantalla de aceptación en lugar de la app.
  */
 import { Redirect, Stack } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { routes } from '@/core/navigation/routes';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { LegalGate } from '@/features/legal/components/LegalGate';
 
 export default function AppLayout() {
   const { status } = useSession();
@@ -31,7 +35,8 @@ export default function AppLayout() {
   const formPresentation = Platform.OS === 'ios' ? 'modal' : 'card';
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+    <LegalGate>
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="(client)" options={{ animation: 'fade' }} />
       <Stack.Screen name="client/[id]" />
@@ -44,6 +49,7 @@ export default function AppLayout() {
       <Stack.Screen name="invitation/accept" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/profile" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/security" options={{ presentation: formPresentation }} />
-    </Stack>
+      </Stack>
+    </LegalGate>
   );
 }

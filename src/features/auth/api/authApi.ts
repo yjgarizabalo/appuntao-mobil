@@ -37,6 +37,11 @@ export interface RegisterPayload {
   email: string;
   phone: string;
   password: string;
+  /**
+   * Ids de **todos** los documentos legales vigentes (`GET /legal/current`).
+   * Sin ellos, o con una versión vieja, el backend rechaza el registro.
+   */
+  acceptedLegalDocumentIds: string[];
 }
 
 export interface AuthSession {

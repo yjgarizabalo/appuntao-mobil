@@ -6,7 +6,7 @@
  * y una regla que la separa de la siguiente, de modo que el ojo encuentre
  * dónde va sin tener que leerlo todo.
  *
- * Con 26 cláusulas hace falta además un índice, y va **plegado** por defecto:
+ * Con muchas cláusulas hace falta además un índice, y va **plegado** por defecto:
  * desplegado mide dos pantallas y empujaría el documento fuera de la vista,
  * que es justo lo contrario de lo que se busca. Quien va a una cláusula
  * concreta lo abre; quien viene a leer de corrido ni lo nota.
@@ -19,16 +19,25 @@
  *  - las viñetas son un `Text` con el punto, no una vista de N píxeles, para
  *    que el punto comparta línea base con su texto en las dos plataformas.
  *
- * Es presentacional: no sabe de dónde salió el documento ni cómo se desplaza
- * la pantalla. El salto del índice lo ejecuta quien monta el scroll
- * (`TermsScreen`), al que este componente le avisa por `onSectionLayout` dónde
+ * Recibe el documento tal como lo sirve el backend y lo interpreta aquí
+ * (`parseLegalContent`), una sola vez por texto. Fuera de eso es
+ * presentacional: no sabe de dónde salió el documento ni cómo se desplaza la
+ * pantalla. El salto del índice lo ejecuta quien monta el scroll
+ * (`LegalDocumentScreen`), al que este componente le avisa por `onSectionLayout` dónde
  * quedó cada cláusula.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { type LayoutChangeEvent, Linking, StyleSheet, View } from 'react-native';
 
-import type { LegalBlock, LegalDocument, LegalSection } from '@/domain/legal';
+import { formatLongDate } from '@/core/utils/format';
+import {
+  LEGAL_CONTACT,
+  type LegalBlock,
+  type LegalDocument,
+  type LegalSection,
+  parseLegalContent,
+} from '@/domain/legal';
 import { Card, Divider, PressableScale, Text, useToast } from '@/ui';
 import { theme } from '@/theme';
 
@@ -46,6 +55,9 @@ export const LegalDocumentView = ({
   onJumpToSection,
 }: LegalDocumentViewProps) => {
   const toast = useToast();
+  const parsed = useMemo(() => parseLegalContent(doc.content), [doc.content]);
+  const contact = LEGAL_CONTACT;
+  const effectiveFrom = formatLongDate(doc.publishedAt);
 
   /** Abrir un enlace puede fallar (sin navegador, sin app de correo): se avisa. */
   const openUrl = (url: string) => {
@@ -56,23 +68,32 @@ export const LegalDocumentView = ({
     <View>
       {/* ── Cabecera ──────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <Text variant="title1">{doc.title}</Text>
+        <Text variant="title1">{parsed.title ?? doc.title}</Text>
 
         <View style={styles.metaRow}>
           <Ionicons name="calendar-outline" size={14} color={theme.color.textSubtle} />
           <Text variant="caption" color="textMuted" style={styles.metaText}>
-            Vigente desde el {doc.effectiveFrom}
+            {effectiveFrom ? `Vigente desde el ${effectiveFrom} · ` : ''}Versión {doc.version}
           </Text>
         </View>
       </View>
 
-      {/* ── Índice ────────────────────────────────────────────────────────── */}
-      {onJumpToSection ? (
-        <TableOfContents sections={doc.sections} onSelect={onJumpToSection} />
+      {/* ── Introducción (lo que va antes de la primera cláusula) ─────────── */}
+      {parsed.intro.length ? (
+        <View style={styles.intro}>
+          {parsed.intro.map((block, index) => (
+            <Block key={index} block={block} />
+          ))}
+        </View>
+      ) : null}
+
+      {/* ── Índice: solo si hay cláusulas suficientes para necesitarlo ────── */}
+      {onJumpToSection && parsed.sections.length > 3 ? (
+        <TableOfContents sections={parsed.sections} onSelect={onJumpToSection} />
       ) : null}
 
       {/* ── Cláusulas ─────────────────────────────────────────────────────── */}
-      {doc.sections.map((section, index) => (
+      {parsed.sections.map((section, index) => (
         <Fragment key={section.number}>
           {index > 0 ? <Divider /> : null}
           <Section section={section} onLayout={onSectionLayout} />
@@ -82,10 +103,10 @@ export const LegalDocumentView = ({
       {/* ── Pie: quién responde ───────────────────────────────────────────── */}
       <Card padding="xl" style={styles.contact}>
         <Text variant="title2" color="brandStrong">
-          {doc.contact.name}
+          {contact.name}
         </Text>
         <Text variant="prose" color="textMuted">
-          {doc.contact.tagline}
+          {contact.tagline}
         </Text>
 
         <Divider />
@@ -93,14 +114,14 @@ export const LegalDocumentView = ({
         <ContactRow
           icon="globe-outline"
           label="Sitio web"
-          value={doc.contact.website}
-          onPress={() => openUrl(doc.contact.website)}
+          value={contact.website}
+          onPress={() => openUrl(contact.website)}
         />
         <ContactRow
           icon="mail-outline"
           label="Correo de contacto"
-          value={doc.contact.email}
-          onPress={() => openUrl(`mailto:${doc.contact.email}`)}
+          value={contact.email}
+          onPress={() => openUrl(`mailto:${contact.email}`)}
         />
       </Card>
     </View>
@@ -269,6 +290,10 @@ const styles = StyleSheet.create({
   },
   metaText: {
     flex: 1,
+  },
+  intro: {
+    gap: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   toc: {
     marginBottom: theme.spacing.lg,

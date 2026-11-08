@@ -86,8 +86,14 @@ export const routes = {
    * adelante, desde el perfil de alguien que ya entró.
    */
   legal: {
-    /** Términos y Condiciones y tratamiento de datos personales. */
-    terms: '/legal/terms' as Href,
+    /** Lista de los documentos vigentes (desde el perfil). */
+    index: '/legal' as Href,
+    /**
+     * Lectura de un documento vigente: `/legal/PRIVACY_POLICY`. El segmento es
+     * el código del catálogo del backend, que la app no conoce de antemano.
+     */
+    document: (type: string): Href =>
+      ({ pathname: '/legal/[type]', params: { type } }) as unknown as Href,
   },
 
   settings: {

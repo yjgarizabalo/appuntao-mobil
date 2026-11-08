@@ -39,10 +39,10 @@ import {
   useToast,
 } from '@/ui';
 import { theme } from '@/theme';
-import { TERMS } from '@/domain/legal';
+import { LEGAL_CONTACT } from '@/domain/legal';
 
 // El mismo correo que publican los términos: una sola fuente para que no se desincronicen.
-const SUPPORT_EMAIL = TERMS.contact.email;
+const SUPPORT_EMAIL = LEGAL_CONTACT.email;
 
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
@@ -256,6 +256,14 @@ export const ProfileScreen = () => {
             label="Contactar soporte"
             description={SUPPORT_EMAIL}
             onPress={handleSupport}
+          />
+          <Divider inset />
+          {/* Una sola fila: la lista la decide el catálogo del backend. */}
+          <SettingRow
+            icon="document-text-outline"
+            label="Documentos legales"
+            description="Términos, tratamiento de datos y más"
+            onPress={() => router.push(routes.legal.index)}
           />
         </Card>
 

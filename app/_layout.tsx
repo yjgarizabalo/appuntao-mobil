@@ -78,8 +78,9 @@ export default function RootLayout() {
                       desde el perfil (con sesión), así que no pueden colgar de
                       `(auth)` ni de `(app)`, que redirigen según la sesión.
                     */}
+                    <Stack.Screen name="legal/index" />
                     <Stack.Screen
-                      name="legal/terms"
+                      name="legal/[type]"
                       options={{ presentation: Platform.OS === 'ios' ? 'modal' : 'card' }}
                     />
                   </Stack>
