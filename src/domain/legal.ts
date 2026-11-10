@@ -61,7 +61,7 @@ export interface LegalDocument {
 
 export const TERMS: LegalDocument = {
   title: 'Términos y Condiciones y Política de Tratamiento de Datos Personales',
-  version: '2026-11-02',
+  version: '2026-11-10',
   effectiveFrom: '14 de octubre de 2026',
 
   sections: [
@@ -387,7 +387,7 @@ export const TERMS: LegalDocument = {
           text:
             'El titular de los datos personales podrá presentar consultas o reclamos ' +
             'relacionados con el tratamiento de sus datos personales a través del correo ' +
-            'electrónico: soporte@elfiao.com',
+            'electrónico: soporte@appuntao.com',
         },
         {
           kind: 'text',
@@ -486,8 +486,8 @@ export const TERMS: LegalDocument = {
             'habilitados por Appuntao para realizar consultas, solicitudes, reclamos o ejercer ' +
             'sus derechos relacionados con el tratamiento de datos personales.',
         },
-        { kind: 'text', text: 'Correo electrónico: soporte@elfiao.com' },
-        { kind: 'text', text: 'Sitio web: https://elfiao.com/' },
+        { kind: 'text', text: 'Correo electrónico: soporte@appuntao.com' },
+        { kind: 'text', text: 'Sitio web: https://appuntao.com/terminos' },
       ],
     },
 
@@ -728,7 +728,7 @@ export const TERMS: LegalDocument = {
   contact: {
     name: 'Appuntao',
     tagline: 'Organiza tus cuentas por cobrar de forma fácil y segura.',
-    website: 'https://elfiao.com/',
-    email: 'soporte@elfiao.com',
+    website: 'https://appuntao.com/terminos',
+    email: 'soporte@appuntao.com',
   },
 };
