@@ -120,8 +120,8 @@ export interface LegalContact {
 export const LEGAL_CONTACT: LegalContact = {
   name: 'Appuntao',
   tagline: 'Organiza tus cuentas por cobrar de forma fácil y segura.',
-  website: 'https://elfiao.com/',
-  email: 'soporte@elfiao.com',
+  website: 'https://appuntao.com/terminos',
+  email: 'soporte@appuntao.com',
 };
 
 /* ── Intérprete de Markdown ──────────────────────────────────────────────── */

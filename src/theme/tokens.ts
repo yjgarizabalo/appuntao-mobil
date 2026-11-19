@@ -295,4 +295,13 @@ export const layout = {
   tabBarHeight: 60,
   fieldHeight: 54,
   buttonHeight: { sm: 38, md: 48, lg: 56 },
+  /**
+   * Ancho del isotipo en el splash de marca. Debe coincidir con `imageWidth`
+   * de `expo-splash-screen` en `app.json` para que el relevo no dé un salto.
+   * 180 es casi el máximo: en Android 12+ el ícono del splash nativo se recorta
+   * a un círculo de 192 dp, y un logo 4:1 más ancho perdería las esquinas.
+   */
+  splashLogoWidth: 180,
+  /** Proporción ancho/alto de `assets/images/icon-blanco.png` (1640 × 411). */
+  brandLogoAspectRatio: 1640 / 411,
 } as const;
