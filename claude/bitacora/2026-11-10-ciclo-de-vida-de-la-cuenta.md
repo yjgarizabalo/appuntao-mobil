@@ -131,3 +131,16 @@ por probar:
    propuestas".
 6. Cerrar un negocio con deudas (debe rechazarse) y sin deudas.
 7. Una cuenta desactivada por un administrador: el login muestra el aviso de soporte.
+
+## Despliegue en development (2026-11-19)
+
+- Backend: `feature/account-lifecycle`, que incluye legal, unida a `develop`. Render aplicó
+  las 4 migraciones (legal, ciclo de vida, transferencias y catálogo).
+- Se publicaron en development los tres documentos legales como **borradores para revisión
+  jurídica** (versión `2026-11-borrador`). Sus textos están en el backend, en `legal/`.
+- App: `feature/account-lifecycle` unida a `dev`. El build para el equipo sale de `dev` con
+  el perfil `preview`, que apunta a `https://fiao-backend.onrender.com/api`.
+- **Las versiones viejas de la app no pueden registrarse ni crear negocios** contra
+  development, porque no envían las aceptaciones. Hay que usar el build nuevo.
+- Los usuarios que ya existían ven la pantalla de aceptación al entrar, y los dueños ven
+  también el acuerdo para negocios.
