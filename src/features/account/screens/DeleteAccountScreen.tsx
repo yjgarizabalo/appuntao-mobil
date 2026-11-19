@@ -29,6 +29,7 @@ import { formatLongDate, formatMoney, pluralize } from '@/core/utils/format';
 import type { OwnedBusinessSummary } from '@/domain/models';
 import { accountApi } from '@/features/account/api/accountApi';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { exportApi } from '@/features/businesses/api/exportApi';
 import {
   AppBar,
   Button,
@@ -55,8 +56,26 @@ export const DeleteAccountScreen = () => {
   const [acknowledged, setAcknowledged] = useState(false);
   const [ackError, setAckError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   const owned = preview.data?.ownedBusinesses ?? [];
+
+  /**
+   * Descargar el Excel de un negocio antes de irse. Al volver se recarga el
+   * resumen en silencio para mostrar la fecha de la descarga.
+   */
+  const handleExport = async (businessId: string) => {
+    if (exportingId) return;
+    setExportingId(businessId);
+    try {
+      await exportApi.downloadAndShare(businessId);
+      void preview.refresh();
+    } catch (caught) {
+      dialog.showError(toAppError(caught));
+    } finally {
+      setExportingId(null);
+    }
+  };
   const graceDays = preview.data?.gracePeriodDays ?? 15;
 
   const submit = async () => {
@@ -188,11 +207,18 @@ export const DeleteAccountScreen = () => {
           </Text>
           <Text variant="body" color="textMuted" style={styles.groupHelp}>
             Al eliminar tu cuenta se cierran y, más adelante, se borra su información. Si
-            alguien de tu equipo va a seguir, pásale el negocio antes.
+            quieres quedarte con ella, descarga el Excel de cada uno. Si alguien de tu equipo
+            va a seguir, pásale el negocio antes.
           </Text>
 
           {owned.map((business) => (
-            <OwnedBusinessCard key={business.id} business={business} />
+            <OwnedBusinessCard
+              key={business.id}
+              business={business}
+              isExporting={exportingId === business.id}
+              exportDisabled={exportingId !== null && exportingId !== business.id}
+              onExport={() => void handleExport(business.id)}
+            />
           ))}
 
           <CheckboxField
@@ -245,7 +271,21 @@ const Bullet = ({
   </View>
 );
 
-const OwnedBusinessCard = ({ business }: { business: OwnedBusinessSummary }) => {
+interface OwnedBusinessCardProps {
+  business: OwnedBusinessSummary;
+  isExporting: boolean;
+  /** Otra descarga está en curso. */
+  exportDisabled: boolean;
+  onExport: () => void;
+}
+
+const OwnedBusinessCard = ({
+  business,
+  isExporting,
+  exportDisabled,
+  onExport,
+}: OwnedBusinessCardProps) => {
+  const exportedOn = business.lastExportedAt ? formatLongDate(business.lastExportedAt) : '';
   const pendingTo = business.pendingTransfer
     ? business.transferCandidates.find(
         (candidate) => candidate.userId === business.pendingTransfer?.toUserId,
@@ -278,6 +318,22 @@ const OwnedBusinessCard = ({ business }: { business: OwnedBusinessSummary }) => 
           No tiene más miembros a quién pasárselo.
         </Text>
       )}
+
+      <Button
+        label={exportedOn ? 'Descargar el Excel otra vez' : 'Descargar el Excel'}
+        variant="secondary"
+        size="sm"
+        icon="download-outline"
+        onPress={onExport}
+        loading={isExporting}
+        disabled={exportDisabled}
+        style={styles.businessAction}
+      />
+      <Text variant="caption" color="textSubtle" style={styles.exportNote}>
+        {exportedOn
+          ? `Lo descargaste el ${exportedOn}.`
+          : 'Clientes, deudas y abonos. Todavía no lo has descargado.'}
+      </Text>
     </Card>
   );
 };
@@ -325,6 +381,9 @@ const styles = StyleSheet.create({
   businessAction: {
     marginTop: theme.spacing.sm,
     alignSelf: 'flex-start',
+  },
+  exportNote: {
+    marginTop: theme.spacing.xxs,
   },
   ack: {
     marginTop: theme.spacing.md,

@@ -64,6 +64,9 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
 - [**2026-11-10-ciclo-de-vida-de-la-cuenta.md**](bitacora/2026-11-10-ciclo-de-vida-de-la-cuenta.md) —
   eliminar la cuenta (lo exigen las tiendas), reactivarla desde el login, pasar un negocio
   a un miembro y cerrarlo. `AppError` gana `reason`, el código de error del backend.
+- [**2026-11-19-exportar-negocio.md**](bitacora/2026-11-19-exportar-negocio.md) —
+  descargar el Excel del negocio desde el perfil, al cerrarlo y al eliminar la cuenta.
+  Agrega `expo-file-system` y `expo-sharing`: hace falta un build nuevo.
 
 ---
 
