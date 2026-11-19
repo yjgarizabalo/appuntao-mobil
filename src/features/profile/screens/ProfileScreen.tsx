@@ -22,6 +22,7 @@ import { formatLongDate, formatPhone, pluralize } from '@/core/utils/format';
 import { displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { businessApi } from '@/features/businesses/api/businessApi';
+import { exportApi } from '@/features/businesses/api/exportApi';
 import { RoleBadge } from '@/features/businesses/components/RoleBadge';
 import {
   useBusinesses,
@@ -60,6 +61,7 @@ export const ProfileScreen = () => {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isClosingBusiness, setIsClosingBusiness] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const fullName = displayName(user);
   const isClientMode = mode === 'client';
@@ -69,10 +71,30 @@ export const ProfileScreen = () => {
     (activeRole === 'OWNER' || (activeBusiness?.ownerId != null && activeBusiness.ownerId === user?.id));
 
   /**
+   * Descargar el Excel del negocio (solo el dueño). Está siempre a mano en
+   * esta sección, no solo al cerrar: sirve de respaldo y para llevar las
+   * cuentas al contador. Se abre la hoja de compartir del teléfono.
+   */
+  const handleExport = async (businessId: string) => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      await exportApi.downloadAndShare(businessId);
+    } catch (caught) {
+      dialog.showError(toAppError(caught));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /**
    * Cerrar el negocio activo. El backend lo rechaza si aún hay deudas por
    * cobrar, y su mensaje lo explica. Cerrado, deja de aparecer para el dueño y
    * su equipo, y su información se elimina pasado el plazo de retención: es
    * definitivo, por eso se confirma en rojo.
+   *
+   * El botón secundario ofrece descargar la información antes, porque
+   * después el negocio ya no aparece en la app. Tocar fuera cancela.
    */
   const handleCloseBusiness = () => {
     if (!activeBusiness) return;
@@ -81,8 +103,12 @@ export const ProfileScreen = () => {
       tone: 'danger',
       title: `¿Cerrar ${target.name}?`,
       message:
-        'Dejará de aparecer para ti y para tu equipo, y su información se eliminará más adelante. No se puede volver a abrir. Si alguien va a seguir con él, mejor pásaselo.',
+        'Dejará de aparecer para ti y para tu equipo, y su información se eliminará más adelante. No se puede volver a abrir. Si quieres quedarte con sus clientes, deudas y abonos, descarga el Excel primero. Si alguien va a seguir con él, mejor pásaselo.',
       confirmLabel: 'Cerrar negocio',
+      cancelLabel: 'Descargar Excel primero',
+      onCancel: () => {
+        void handleExport(target.id);
+      },
       onConfirm: async () => {
         setIsClosingBusiness(true);
         try {
@@ -289,6 +315,13 @@ export const ProfileScreen = () => {
                     label="Pasar el negocio"
                     description="Que alguien de tu equipo quede como dueño"
                     onPress={() => router.push(routes.business.transfer(activeBusiness.id))}
+                  />
+                  <Divider inset />
+                  <SettingRow
+                    icon="download-outline"
+                    label={isExporting ? 'Preparando el Excel…' : 'Descargar información'}
+                    description="Excel con clientes, deudas y abonos"
+                    onPress={() => void handleExport(activeBusiness.id)}
                   />
                   <Divider inset />
                   <SettingRow

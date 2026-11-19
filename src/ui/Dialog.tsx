@@ -163,6 +163,7 @@ interface DialogState {
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm?: () => void;
+  onCancel?: () => void;
 }
 
 const CLOSED: DialogState = { visible: false, tone: 'info', title: '' };
@@ -215,6 +216,11 @@ export const useDialog = () => {
       cancelLabel?: string;
       tone?: DialogTone;
       onConfirm: () => void;
+      /**
+       * Lo que hace el botón secundario. Si no se pasa, solo cierra. Tocar
+       * fuera o el botón atrás de Android cierran sin llamarlo.
+       */
+      onCancel?: () => void;
     }) => {
       setState({
         visible: true,
@@ -224,6 +230,7 @@ export const useDialog = () => {
         confirmLabel: options.confirmLabel ?? 'Confirmar',
         cancelLabel: options.cancelLabel ?? 'Cancelar',
         onConfirm: options.onConfirm,
+        onCancel: options.onCancel,
       });
     },
     [],
@@ -249,6 +256,7 @@ export const useDialog = () => {
             state.onConfirm?.();
           }
         : undefined,
+      onCancel: state.onCancel,
       onClose: close,
     } satisfies DialogProps,
   };
