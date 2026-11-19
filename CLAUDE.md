@@ -146,6 +146,7 @@ appuntao-mobil-v2/
 │   ├── theme/                # tokens.ts (escala cruda) + index.ts (roles)
 │   ├── ui/                   # design system (24 componentes)
 │   └── features/             # una carpeta por área de negocio
+│       ├── account/          # ciclo de vida de la cuenta propia: api · screens
 │       ├── auth/             # api · components · session · screens
 │       ├── businesses/       # api · state · components · screens
 │       ├── client/           # modo cliente: api · state · components · screens
@@ -198,8 +199,11 @@ Así la pantalla se puede mover, reutilizar o probar sin pelear con el enrutador
 | `/client/[id]`       | `app/(app)/client/[id].tsx`       | **Detalle del cliente** (pantalla núcleo)            |
 | `/client/new`        | `app/(app)/client/new.tsx`        | Registrar cliente                                    |
 | `/business/new`      | `app/(app)/business/new.tsx`      | Crear negocio                                        |
+| `/business/transfer` | `app/(app)/business/transfer.tsx` | Pasarle el negocio a un miembro (`?businessId=`)     |
 | `/settings/profile`  | `app/(app)/settings/profile.tsx`  | Editar perfil                                        |
 | `/settings/security` | `app/(app)/settings/security.tsx` | Cambiar contraseña                                   |
+| `/settings/delete-account` | `app/(app)/settings/delete-account.tsx` | Eliminar la cuenta propia               |
+| `/settings/deactivate-account` | `app/(app)/settings/deactivate-account.tsx` | Desactivar la cuenta propia (reversible) |
 | `/wallet`            | `app/(app)/(client)/wallet.tsx`    | **Modo cliente**: cuánto debo y en qué tiendas      |
 | `/movements`         | `app/(app)/(client)/movements.tsx` | Modo cliente: extracto de todas las tiendas         |
 | `/me`                | `app/(app)/(client)/me.tsx`        | Modo cliente: perfil (igual que `/profile`)         |
@@ -243,7 +247,7 @@ Reglas:
 | Provider           | Hook              | Para qué                                                                      |
 | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
 | `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout(opciones)`, `endSession`, `patchUser` |
-| `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness` |
+| `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness`, `refresh`, `refreshIfStale` |
 | `AppModeProvider`  | `useAppMode()`    | **modo** `merchant` / `client` (persistido), tiendas donde al usuario le fían, `setMode`, `refreshAccounts` |
 
 Todo lo demás **no** es estado global: clientes, deudas y pagos los carga cada pantalla con
@@ -258,6 +262,20 @@ los hooks del núcleo. Si necesitas datos en una pantalla nueva, el orden de pre
 
 `useSession().status` es `'loading' | 'authenticated' | 'unauthenticated'`. **Nunca** deduzcas
 la sesión de otra cosa.
+
+**La lista de negocios, y con ella el rol del usuario, se mantiene al día sola.** Otra
+persona puede cambiarla con la app abierta: sacarlo del equipo, cambiarle el rol o pasarle
+un negocio. `BusinessProvider` la vuelve a pedir **en silencio**, sin spinner, con 15 s
+mínimo entre consultas y nunca dos a la vez:
+
+- cuando la app vuelve del fondo;
+- al entrar a las pantallas que muestran el rol, con `useRefreshBusinessesOnFocus()`. Hoy
+  son Inicio, Mis negocios, Perfil y Equipo; úsalo en cualquier pantalla nueva que dependa
+  del rol;
+- cuando una petición con `x-business-id` responde 403. El cliente HTTP lo avisa por
+  `onBusinessForbidden` (`core/http/businessAccess.ts`).
+
+`refresh()` es la recarga con indicador (pull-to-refresh, reintentar).
 
 ---
 
@@ -326,6 +344,31 @@ reglas que no se pueden saltar:
 El límite de intentos de login (5 por minuto) llega como **429** → `AppError('RATE_LIMITED')`.
 Se muestra el mensaje y **no se reintenta solo**.
 
+### Ciclo de vida de la cuenta y de los negocios
+
+Lo maneja el módulo `account-lifecycle` del backend (su documento está en
+`docs/modulos/account-lifecycle.md`). En la app:
+
+| Acción | Dónde | Qué pasa |
+| ------ | ----- | -------- |
+| **Desactivar** la cuenta | Perfil → `/settings/deactivate-account` | Una pausa: se cierran todas las sesiones y **no se borra nada**. Sus negocios siguen activos para el equipo. Vuelve iniciando sesión. A los 48 meses sin volver, el backend la anonimiza |
+| **Eliminar** la cuenta | Perfil → `/settings/delete-account` | Queda desactivada de inmediato y se anonimiza a los 15 días. Si es dueño, sus negocios se cierran; antes se le ofrece pasárselos a un miembro. Se arrepiente iniciando sesión |
+| **Reactivar** | Login | 403 con `reason` `ACCOUNT_DEACTIVATED` o `ACCOUNT_DELETION_PENDING`: se ofrece reactivar y se repite el login con `reactivate: true`. `ACCOUNT_DISABLED` lo hizo un administrador: solo se muestra el aviso de soporte |
+| **Pasar** un negocio | Perfil → `/business/transfer` | El dueño propone y el miembro acepta o rechaza desde `IncomingTransfersCard`, en Inicio y en Mis negocios. Hay 7 días para responder. Al aceptar, se llama `useLegalGate().recheck()` porque el nuevo dueño debe aceptar el acuerdo para negocios. El dueño se entera de la respuesta por **correo** (lo envía el backend) y en "Últimas propuestas" de la misma pantalla |
+| **Cerrar** un negocio | Perfil → "Cerrar negocio" | El backend lo rechaza si hay deudas por cobrar. Cerrado, **deja de aparecer** en `GET /business` y sus datos se borran a los 6 meses |
+
+Reglas:
+
+- Desactivar, eliminar y cambiar la contraseña cierran la sesión **en el servidor**. Al
+  terminar se usa `endSession()` (solo limpia el dispositivo), no `logout()`.
+- **La descarga en Excel se ofrece antes de cerrar**, no después: un negocio cerrado ya no
+  aparece en la lista, así que después no hay de dónde descargarlo. Va en "Cerrar
+  negocio" y en la tarjeta de cada negocio de "Eliminar cuenta". Mientras la rama
+  `feature/business-export` no esté integrada, la app no ofrece descarga.
+- Lo que el backend conserva después de eliminar una cuenta (los registros de seguridad
+  del login, los datos de los negocios donde era cliente) lo explica la política de datos,
+  no la app.
+
 ### Sin conexión
 
 `src/core/connectivity.ts` (sobre `expo-network`) sabe si hay internet **antes** de
@@ -367,11 +410,16 @@ catch (caught) {
 Nunca escribas un `switch` sobre códigos de error en una pantalla, y nunca dejes un error
 solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 
+Cuando una pantalla sí tiene que distinguir un caso, usa `error.reason`: el código de
+negocio que manda el backend en `error` (`ACCOUNT_DEACTIVATED`,
+`BUSINESS_CLOSURE_ACK_REQUIRED`…). `error.payload` trae el resto del cuerpo de la
+respuesta. Nunca compares el texto de `message`: es para personas y puede cambiar.
+
 ### Endpoints
 
 | Método | Endpoint              | `x-business-id` | Módulo                                            |
 | ------ | --------------------- | --------------- | ------------------------------------------------- |
-| POST   | `/auth/login`         | —               | `authApi.login` (manda `deviceId` + `deviceName`) |
+| POST   | `/auth/login`         | —               | `authApi.login` (manda `deviceId` + `deviceName`; `reactivate: true` tras un 403 `ACCOUNT_DEACTIVATED` o `ACCOUNT_DELETION_PENDING`) |
 | POST   | `/auth/logout`        | —               | `authApi.logout` (header `x-refresh-token`)       |
 | POST   | `/auth/refresh`       | —               | interceptor de `client.ts` (header `x-device-id`) |
 | POST   | `/users`              | —               | `authApi.register` (manda `acceptedLegalDocumentIds`) |
@@ -380,8 +428,16 @@ solo en consola: si el usuario pidió algo y falla, el usuario debe verlo.
 | POST   | `/legal/accept`       | —               | `legalApi.accept`                                 |
 | PATCH  | `/users/:id`          | —               | `authApi.updateProfile` (**solo** nombre y apellido) |
 | PATCH  | `/users/me/password`  | —               | `authApi.updatePassword` (pide la actual)         |
+| POST   | `/users/me/deactivate` | —              | `accountApi.deactivate` (pide la contraseña; el backend cierra las sesiones) |
+| GET    | `/users/me/deletion-preview` | —        | `accountApi.deletionPreview`                      |
+| POST   | `/users/me/deletion`  | —               | `accountApi.requestDeletion` (pide la contraseña; el backend cierra las sesiones) |
 | GET    | `/business`           | —               | `businessApi.list`                                |
 | POST   | `/business`           | —               | `businessApi.create` (manda `acceptedLegalDocumentIds`) |
+| PATCH  | `/business/:id/inactivate` | —          | `businessApi.close` (solo el dueño, sin deudas por cobrar) |
+| POST · GET · DELETE | `/business/:id/ownership-transfer` | — | `ownershipApi.request` · `pending` · `cancel` (solo el dueño) |
+| GET    | `/business/:id/ownership-transfers/history` | — | `ownershipApi.history` (las 3 últimas resueltas) |
+| GET    | `/business/ownership-transfers/incoming` | — | `ownershipApi.incoming` (lo muestra `IncomingTransfersCard`) |
+| POST   | `/business/ownership-transfers/:id/accept` · `/reject` | — | `ownershipApi.accept` · `reject` |
 | GET    | `/debtors`            | ✅              | `debtorApi.listByBusiness`                        |
 | GET    | `/debtors/me/all`     | —               | `debtorApi.listAll`                               |
 | GET    | `/debtors/:id`        | ✅              | `debtorApi.getById`                               |
@@ -456,6 +512,10 @@ Reglas de uso:
   insets: `Screen` y `AppBar` ya los aplican.
 - Formulario → `<Screen scroll padded keyboardAware footer={<Button …/>}>`.
 - Zona táctil presionable → `PressableScale` (animación + vibración uniformes).
+- **Un `Dialog` que se abre desde una `Sheet` va después de cerrarla.** Son dos `Modal`, y
+  si el diálogo aparece con la hoja todavía montada, queda detrás. Cierra la hoja y abre el
+  diálogo en su `onClosed`, que se llama al terminar la animación. Ejemplo: "Quitar del
+  negocio" en `TeamScreen`.
 - Aviso sin decisión → `useToast()`. Aviso **con** decisión o error → `useDialog()`.
   Nunca `Alert.alert`.
 - Lista → `FlatList` con `RowSkeleton` mientras carga y `EmptyState` / `ErrorState` según

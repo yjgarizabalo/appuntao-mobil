@@ -6,6 +6,9 @@
  * se puede tocar, así que el padre solo abre esta hoja para miembros
  * gestionables; aquí se muestran únicamente las acciones que el rol propio
  * permite (`canManageRole`, `canRemove`).
+ *
+ * "Quitar del negocio" no confirma aquí: el padre cierra la hoja y abre la
+ * confirmación en `onClosed`, para que el diálogo no quede detrás de la hoja.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
@@ -22,6 +25,8 @@ export interface MemberActionsSheetProps {
   member: Member | null;
   visible: boolean;
   onClose: () => void;
+  /** La hoja terminó de cerrarse. Ver `SheetProps.onClosed`. */
+  onClosed?: () => void;
   canManageRole: boolean;
   canRemove: boolean;
   onChangeRole: (role: BusinessRole) => void;
@@ -34,6 +39,7 @@ export const MemberActionsSheet = ({
   member,
   visible,
   onClose,
+  onClosed,
   canManageRole,
   canRemove,
   onChangeRole,
@@ -43,6 +49,7 @@ export const MemberActionsSheet = ({
   <Sheet
     visible={visible}
     onClose={onClose}
+    onClosed={onClosed}
     dismissible={!isBusy}
     title={member ? `Gestionar a ${member.name}` : 'Gestionar'}
     subtitle={member?.email ?? member?.phone ?? undefined}

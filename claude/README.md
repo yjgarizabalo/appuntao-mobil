@@ -61,6 +61,9 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
   los textos legales dejan el bundle y se leen del backend (dos documentos: términos y
   política de datos); el registro envía qué versión se aceptó y, con sesión, la app pide
   aceptar las versiones nuevas. Cierra los tres pendientes del 2026-10-14.
+- [**2026-11-10-ciclo-de-vida-de-la-cuenta.md**](bitacora/2026-11-10-ciclo-de-vida-de-la-cuenta.md) —
+  eliminar la cuenta (lo exigen las tiendas), reactivarla desde el login, pasar un negocio
+  a un miembro y cerrarlo. `AppError` gana `reason`, el código de error del backend.
 
 ---
 

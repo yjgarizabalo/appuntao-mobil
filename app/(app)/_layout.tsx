@@ -44,11 +44,14 @@ export default function AppLayout() {
       <Stack.Screen name="client/new" options={{ presentation: formPresentation }} />
       <Stack.Screen name="client/edit" options={{ presentation: formPresentation }} />
       <Stack.Screen name="business/new" options={{ presentation: formPresentation }} />
+      <Stack.Screen name="business/transfer" options={{ presentation: formPresentation }} />
       <Stack.Screen name="team/index" />
       <Stack.Screen name="team/invite" options={{ presentation: formPresentation }} />
       <Stack.Screen name="invitation/accept" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/profile" options={{ presentation: formPresentation }} />
       <Stack.Screen name="settings/security" options={{ presentation: formPresentation }} />
+      <Stack.Screen name="settings/delete-account" options={{ presentation: formPresentation }} />
+      <Stack.Screen name="settings/deactivate-account" options={{ presentation: formPresentation }} />
       </Stack>
     </LegalGate>
   );

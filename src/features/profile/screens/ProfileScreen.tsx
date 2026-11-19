@@ -18,11 +18,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { env } from '@/core/config/env';
 import { toAppError } from '@/core/errors/AppError';
 import { routes } from '@/core/navigation/routes';
-import { formatPhone, pluralize } from '@/core/utils/format';
+import { formatLongDate, formatPhone, pluralize } from '@/core/utils/format';
 import { displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { businessApi } from '@/features/businesses/api/businessApi';
 import { RoleBadge } from '@/features/businesses/components/RoleBadge';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import {
+  useBusinesses,
+  useRefreshBusinessesOnFocus,
+} from '@/features/businesses/state/BusinessProvider';
 import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
 import { useAppMode } from '@/features/client/state/AppModeProvider';
 import {
@@ -47,15 +51,60 @@ const SUPPORT_EMAIL = LEGAL_CONTACT.email;
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const { user, logout } = useSession();
-  const { businesses, activeBusiness, activeRole } = useBusinesses();
+  const { businesses, activeBusiness, activeRole, refresh: refreshBusinesses } = useBusinesses();
   const { mode, accounts, hasConfirmedNoAccounts } = useAppMode();
+  // El rol y las opciones de dueño dependen de que la lista esté al día.
+  useRefreshBusinessesOnFocus();
   const dialog = useDialog();
   const toast = useToast();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isClosingBusiness, setIsClosingBusiness] = useState(false);
 
   const fullName = displayName(user);
   const isClientMode = mode === 'client';
+  /** Pasar o cerrar el negocio es solo del dueño. */
+  const ownsActiveBusiness =
+    Boolean(activeBusiness) &&
+    (activeRole === 'OWNER' || (activeBusiness?.ownerId != null && activeBusiness.ownerId === user?.id));
+
+  /**
+   * Cerrar el negocio activo. El backend lo rechaza si aún hay deudas por
+   * cobrar, y su mensaje lo explica. Cerrado, deja de aparecer para el dueño y
+   * su equipo, y su información se elimina pasado el plazo de retención: es
+   * definitivo, por eso se confirma en rojo.
+   */
+  const handleCloseBusiness = () => {
+    if (!activeBusiness) return;
+    const target = activeBusiness;
+    dialog.confirm({
+      tone: 'danger',
+      title: `¿Cerrar ${target.name}?`,
+      message:
+        'Dejará de aparecer para ti y para tu equipo, y su información se eliminará más adelante. No se puede volver a abrir. Si alguien va a seguir con él, mejor pásaselo.',
+      confirmLabel: 'Cerrar negocio',
+      onConfirm: async () => {
+        setIsClosingBusiness(true);
+        try {
+          const result = await businessApi.close(target.id);
+          await refreshBusinesses();
+          const when = formatLongDate(result.dataDeletionScheduledAt);
+          dialog.show({
+            tone: 'success',
+            title: `${target.name} quedó cerrado`,
+            message: when
+              ? `Su información se eliminará definitivamente el ${when}.`
+              : 'Su información se eliminará más adelante.',
+            confirmLabel: 'Entendido',
+          });
+        } catch (caught) {
+          dialog.showError(toAppError(caught));
+        } finally {
+          setIsClosingBusiness(false);
+        }
+      },
+    });
+  };
 
   /**
    * Salir de este dispositivo o de todos.
@@ -232,6 +281,25 @@ export const ProfileScreen = () => {
                   />
                 </>
               ) : null}
+              {ownsActiveBusiness && activeBusiness ? (
+                <>
+                  <Divider inset />
+                  <SettingRow
+                    icon="swap-horizontal-outline"
+                    label="Pasar el negocio"
+                    description="Que alguien de tu equipo quede como dueño"
+                    onPress={() => router.push(routes.business.transfer(activeBusiness.id))}
+                  />
+                  <Divider inset />
+                  <SettingRow
+                    icon="close-circle-outline"
+                    label={isClosingBusiness ? 'Cerrando negocio…' : 'Cerrar negocio'}
+                    description={activeBusiness.name}
+                    destructive
+                    onPress={handleCloseBusiness}
+                  />
+                </>
+              ) : null}
             </>
           )}
           <Divider inset />
@@ -285,13 +353,32 @@ export const ProfileScreen = () => {
           />
         </Card>
 
+        {/* ── Desactivar o eliminar la cuenta ─────────────────────────────── */}
+        <Card padding="none" style={styles.group}>
+          <SettingRow
+            icon="pause-circle-outline"
+            label="Desactivar mi cuenta"
+            description="Una pausa: no se borra nada y vuelves cuando quieras"
+            destructive
+            onPress={() => router.push(routes.settings.deactivateAccount)}
+          />
+          <Divider inset />
+          <SettingRow
+            icon="trash-outline"
+            label="Eliminar mi cuenta"
+            description="Borra tus datos personales de Appuntao"
+            destructive
+            onPress={() => router.push(routes.settings.deleteAccount)}
+          />
+        </Card>
+
         <Text variant="caption" color="textSubtle" align="center" style={styles.version}>
           Appuntao v2.0.0
           {env.environment === 'prd' ? '' : ` · ${env.environment}`}
         </Text>
       </View>
 
-      <Dialog {...dialog.props} loading={isLoggingOut} />
+      <Dialog {...dialog.props} loading={isLoggingOut || isClosingBusiness} />
     </Screen>
   );
 };

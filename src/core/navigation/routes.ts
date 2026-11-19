@@ -34,6 +34,9 @@ export const routes = {
 
   business: {
     create: '/business/new' as Href,
+    /** Pasarle la propiedad del negocio a un miembro (solo el dueño). */
+    transfer: (businessId: string): Href =>
+      ({ pathname: '/business/transfer', params: { businessId } }) as unknown as Href,
   },
 
   team: {
@@ -99,5 +102,7 @@ export const routes = {
   settings: {
     profile: '/settings/profile' as Href,
     security: '/settings/security' as Href,
+    deleteAccount: '/settings/delete-account' as Href,
+    deactivateAccount: '/settings/deactivate-account' as Href,
   },
 } as const;

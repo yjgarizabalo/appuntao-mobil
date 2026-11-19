@@ -27,6 +27,12 @@ export interface LoginCredentials {
   /** Correo, teléfono o número de documento: el backend acepta los tres. */
   identifier: string;
   password: string;
+  /**
+   * Reactiva una cuenta que el propio usuario desactivó o cuya eliminación
+   * está pendiente. Solo se envía después de que el backend respondiera 403
+   * `ACCOUNT_DEACTIVATED` o `ACCOUNT_DELETION_PENDING` y el usuario aceptara.
+   */
+  reactivate?: boolean;
 }
 
 export interface RegisterPayload {

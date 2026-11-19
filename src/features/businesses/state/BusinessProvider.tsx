@@ -9,7 +9,18 @@
  * El v1 tenía cinco providers anidados; clientes, deudas y pagos no
  * necesitaban estado compartido —cada pantalla carga sus propios datos— así
  * que aquí quedan solo dos: sesión y negocios.
+ *
+ * **La lista se mantiene al día sola.** El rol del usuario sale de aquí, y
+ * otra persona puede cambiarlo mientras la app está abierta: sacarlo del
+ * equipo, cambiarle el rol, pasarle un negocio o aceptar el que él propuso.
+ * Por eso se vuelve a pedir, en silencio y sin spinner:
+ *  - cuando la app vuelve del fondo;
+ *  - al entrar a las pantallas que muestran el rol (`useRefreshBusinessesOnFocus`);
+ *  - cuando una operación sobre un negocio responde 403 (`onBusinessForbidden`).
+ * `refreshIfStale` deja un mínimo de tiempo entre consultas y nunca lanza dos a
+ * la vez.
  */
+import { useFocusEffect } from 'expo-router';
 import {
   type ReactNode,
   createContext,
@@ -20,8 +31,10 @@ import {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 
 import { type AppError, toAppError } from '@/core/errors/AppError';
+import { onBusinessForbidden } from '@/core/http/businessAccess';
 import { createLogger } from '@/core/logger';
 import { readCache, writeCache } from '@/core/storage/cache';
 import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
@@ -32,6 +45,9 @@ import { useSession } from '@/features/auth/session/SessionProvider';
 import { businessApi } from '@/features/businesses/api/businessApi';
 
 const log = createLogger('business');
+
+/** Tiempo mínimo entre dos recargas automáticas de la lista. */
+const AUTO_REFRESH_MIN_AGE_MS = 15_000;
 
 interface BusinessContextValue {
   businesses: Business[];
@@ -56,7 +72,13 @@ interface BusinessContextValue {
   /** `true` cuando el usuario todavía no ha creado ningún negocio. */
   isEmpty: boolean;
   selectBusiness: (businessId: string) => void;
+  /** Recarga con indicador (pull-to-refresh, botón de reintentar). */
   refresh: () => Promise<void>;
+  /**
+   * Recarga en silencio si la última carga tiene más de `minAgeMs` (por defecto
+   * 15 s). Para mantener el rol al día sin que el usuario lo note.
+   */
+  refreshIfStale: (minAgeMs?: number) => Promise<void>;
   createBusiness: (draft: BusinessDraft) => Promise<Business>;
   getBusiness: (businessId: string) => Business | undefined;
 }
@@ -96,8 +118,12 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
+  /** Cuándo terminó la última carga desde la red, y si hay una en curso. */
+  const lastLoadedAtRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setIsLoading(true);
     setError(null);
 
     const cacheKey = userId ? `businesses:${userId}` : undefined;
@@ -120,6 +146,7 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       applyBusinesses(items);
       await resolveActiveBusiness(items);
       if (cacheKey) void writeCache(cacheKey, items);
+      lastLoadedAtRef.current = Date.now();
     } catch (caught) {
       const appError = toAppError(caught);
       log.error('No se pudieron cargar los negocios', { code: appError.code });
@@ -130,10 +157,38 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
         applyBusinesses([]);
       }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
       setHasLoaded(true);
     }
   }, [applyBusinesses, resolveActiveBusiness, userId]);
+
+  const refresh = useCallback(() => load(), [load]);
+
+  const refreshIfStale = useCallback(
+    async (minAgeMs = AUTO_REFRESH_MIN_AGE_MS) => {
+      if (!isAuthenticated) return;
+      if (inFlightRef.current) return inFlightRef.current;
+      if (Date.now() - lastLoadedAtRef.current < minAgeMs) return;
+      const run = load({ silent: true }).finally(() => {
+        inFlightRef.current = null;
+      });
+      inFlightRef.current = run;
+      return run;
+    },
+    [isAuthenticated, load],
+  );
+
+  // Al volver del fondo: pudo pasar cualquier cosa con el equipo mientras tanto.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshIfStale();
+    });
+    return () => subscription.remove();
+  }, [refreshIfStale]);
+
+  // Un 403 sobre un negocio: el acceso cambió. Se recarga casi de inmediato
+  // (con un margen corto para no repetir si fallan varias peticiones a la vez).
+  useEffect(() => onBusinessForbidden(() => void refreshIfStale(2_000)), [refreshIfStale]);
 
   // Se cargan al autenticarse y se limpian al salir.
   useEffect(() => {
@@ -209,7 +264,8 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       error,
       isEmpty: hasLoaded && businesses.length === 0,
       selectBusiness,
-      refresh: load,
+      refresh,
+      refreshIfStale,
       createBusiness,
       getBusiness,
     }),
@@ -223,13 +279,28 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       error,
       hasLoaded,
       selectBusiness,
-      load,
+      refresh,
+      refreshIfStale,
       createBusiness,
       getBusiness,
     ],
   );
 
   return <BusinessContext.Provider value={value}>{children}</BusinessContext.Provider>;
+};
+
+/**
+ * Vuelve a pedir los negocios (en silencio, si la última carga ya tiene un
+ * rato) cada vez que la pantalla gana el foco. Va en las pantallas que
+ * muestran el rol o dependen de él: Inicio, Mis negocios, Perfil y Equipo.
+ */
+export const useRefreshBusinessesOnFocus = (): void => {
+  const { refreshIfStale } = useBusinesses();
+  useFocusEffect(
+    useCallback(() => {
+      void refreshIfStale();
+    }, [refreshIfStale]),
+  );
 };
 
 export const useBusinesses = (): BusinessContextValue => {

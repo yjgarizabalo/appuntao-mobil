@@ -46,6 +46,13 @@ import { theme } from '@/theme';
 export interface SheetProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Se llama cuando la hoja **terminó** de cerrarse (animación incluida), la
+   * haya cerrado el usuario o el padre. Es el momento de abrir un `Dialog`
+   * que la hoja disparó: la hoja y el diálogo son dos `Modal`, y si el diálogo
+   * aparece mientras la hoja sigue montada, queda detrás de ella.
+   */
+  onClosed?: () => void;
   title?: string;
   subtitle?: string;
   /**
@@ -72,6 +79,7 @@ const DISMISS_VELOCITY = 900;
 export const Sheet = ({
   visible,
   onClose,
+  onClosed,
   title,
   subtitle,
   titleNumberOfLines = 1,
@@ -97,8 +105,9 @@ export const Sheet = ({
     (notify: boolean) => {
       setIsMounted(false);
       if (notify) onClose();
+      onClosed?.();
     },
-    [onClose],
+    [onClose, onClosed],
   );
 
   const animateOut = useCallback(

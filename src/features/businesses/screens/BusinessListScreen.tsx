@@ -16,13 +16,18 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { haptics } from '@/core/haptics';
 import { routes } from '@/core/navigation/routes';
 import { BusinessRow } from '@/features/businesses/components/BusinessRow';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { IncomingTransfersCard } from '@/features/businesses/components/IncomingTransfersCard';
+import {
+  useBusinesses,
+  useRefreshBusinessesOnFocus,
+} from '@/features/businesses/state/BusinessProvider';
 import { AppBar, EmptyState, ErrorState, Fab, ListSkeleton, Screen } from '@/ui';
 import { theme } from '@/theme';
 
 export const BusinessListScreen = () => {
   const { businesses, activeBusinessId, isLoading, error, refresh, selectBusiness } =
     useBusinesses();
+  useRefreshBusinessesOnFocus();
 
   const handleSelect = (businessId: string) => {
     haptics.select();
@@ -55,6 +60,7 @@ export const BusinessListScreen = () => {
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={<IncomingTransfersCard />}
           refreshControl={
             <RefreshControl
               refreshing={isLoading}

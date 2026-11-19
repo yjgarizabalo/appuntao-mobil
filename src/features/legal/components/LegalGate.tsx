@@ -15,13 +15,27 @@
  *  - Se consulta `GET /legal/pending` y no el `pendingLegalDocuments` del
  *    login: así funciona igual con una sesión restaurada al abrir la app, que
  *    no pasa por el login.
+ *  - `useLegalGate().recheck()` vuelve a preguntar. Lo usa quien cambia lo que
+ *    el usuario tiene que aceptar sin pasar por el login: hoy, aceptar la
+ *    transferencia de un negocio, que le exige los documentos para dueños.
  */
-import type { ReactNode } from 'react';
+import { type ReactNode, createContext, useContext, useMemo } from 'react';
 
 import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { legalApi } from '@/features/legal/api/legalApi';
 import { LegalUpdateScreen } from '@/features/legal/screens/LegalUpdateScreen';
+
+interface LegalGateContextValue {
+  /** Vuelve a consultar los pendientes; si hay, aparece la pantalla de aceptación. */
+  recheck: () => Promise<void>;
+}
+
+const LegalGateContext = createContext<LegalGateContextValue>({
+  recheck: async () => undefined,
+});
+
+export const useLegalGate = (): LegalGateContextValue => useContext(LegalGateContext);
 
 export const LegalGate = ({ children }: { children: ReactNode }) => {
   const { user } = useSession();
@@ -30,9 +44,14 @@ export const LegalGate = ({ children }: { children: ReactNode }) => {
     deps: [user?.id],
   });
 
+  const value = useMemo<LegalGateContextValue>(
+    () => ({ recheck: pending.refresh }),
+    [pending.refresh],
+  );
+
   if (pending.data?.length) {
     return <LegalUpdateScreen documents={pending.data} onDone={pending.setData} />;
   }
 
-  return <>{children}</>;
+  return <LegalGateContext.Provider value={value}>{children}</LegalGateContext.Provider>;
 };
