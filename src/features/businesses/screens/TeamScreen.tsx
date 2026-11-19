@@ -9,7 +9,7 @@
  * la fila no es accionable.
  */
 import { router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
@@ -22,7 +22,10 @@ import { invitationApi } from '@/features/businesses/api/invitationApi';
 import { memberApi } from '@/features/businesses/api/memberApi';
 import { MemberActionsSheet } from '@/features/businesses/components/MemberActionsSheet';
 import { MemberRow } from '@/features/businesses/components/MemberRow';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import {
+  useBusinesses,
+  useRefreshBusinessesOnFocus,
+} from '@/features/businesses/state/BusinessProvider';
 import {
   AppBar,
   Badge,
@@ -43,6 +46,7 @@ import { theme } from '@/theme';
 export const TeamScreen = () => {
   const { user } = useSession();
   const { activeBusiness, activeBusinessId, can, refresh: refreshBusinesses } = useBusinesses();
+  useRefreshBusinessesOnFocus();
   const dialog = useDialog();
   const toast = useToast();
 
@@ -50,7 +54,15 @@ export const TeamScreen = () => {
   const canManage = can('member:manage');
   const canRemove = can('member:remove');
 
+  /**
+   * El miembro de la hoja y si la hoja está abierta van por separado: al
+   * cerrarla, el miembro se conserva hasta que termina la animación, para que
+   * el título no quede en blanco mientras baja.
+   */
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  /** Quitar se confirma cuando la hoja ya cerró (ver `handleSheetClosed`). */
+  const pendingRemovalRef = useRef<Member | null>(null);
   const [isBusy, setIsBusy] = useState(false);
 
   const members = useAsyncData<Member[]>(
@@ -91,7 +103,7 @@ export const TeamScreen = () => {
       setIsBusy(true);
       try {
         await memberApi.updateRole(activeBusinessId, target.id, role);
-        setSelectedMember(null);
+        setIsSheetOpen(false);
         toast.success(`${target.name.split(' ')[0]} ahora es ${BUSINESS_ROLE_LABEL[role]}`);
         await reloadAll();
       } catch (caught) {
@@ -103,29 +115,44 @@ export const TeamScreen = () => {
     [activeBusinessId, dialog, reloadAll, selectedMember, toast],
   );
 
-  const handleRemove = useCallback(() => {
-    const target = selectedMember;
-    if (!target || !activeBusinessId) return;
-    dialog.confirm({
+  const confirmRemoval = useCallback(
+    (target: Member) => {
+      if (!activeBusinessId) return;
+      dialog.confirm({
       tone: 'danger',
-      title: `¿Quitar a ${target.name.split(' ')[0]}?`,
-      message: 'Perderá el acceso a este negocio. Puedes volver a invitarlo cuando quieras.',
-      confirmLabel: 'Quitar',
-      onConfirm: async () => {
-        setIsBusy(true);
-        try {
-          await memberApi.remove(activeBusinessId, target.id);
-          setSelectedMember(null);
-          toast.success(`${target.name.split(' ')[0]} fue quitado del negocio`);
-          await reloadAll();
-        } catch (caught) {
-          dialog.showError(toAppError(caught));
-        } finally {
-          setIsBusy(false);
-        }
-      },
-    });
-  }, [activeBusinessId, dialog, reloadAll, selectedMember, toast]);
+        title: `¿Quitar a ${target.name.split(' ')[0]}?`,
+        message: 'Perderá el acceso a este negocio. Puedes volver a invitarlo cuando quieras.',
+        confirmLabel: 'Quitar',
+        onConfirm: async () => {
+          setIsBusy(true);
+          try {
+            await memberApi.remove(activeBusinessId, target.id);
+            toast.success(`${target.name.split(' ')[0]} fue quitado del negocio`);
+            await reloadAll();
+          } catch (caught) {
+            dialog.showError(toAppError(caught));
+          } finally {
+            setIsBusy(false);
+          }
+        },
+      });
+    },
+    [activeBusinessId, dialog, reloadAll, toast],
+  );
+
+  /** "Quitar del negocio": primero se cierra la hoja; la confirmación sigue al cerrar. */
+  const handleRemove = useCallback(() => {
+    if (!selectedMember) return;
+    pendingRemovalRef.current = selectedMember;
+    setIsSheetOpen(false);
+  }, [selectedMember]);
+
+  const handleSheetClosed = useCallback(() => {
+    setSelectedMember(null);
+    const target = pendingRemovalRef.current;
+    pendingRemovalRef.current = null;
+    if (target) confirmRemoval(target);
+  }, [confirmRemoval]);
 
   /** Una fila es accionable si puedo gestionar, no es el dueño y no soy yo. */
   const canManageMember = (member: Member) =>
@@ -180,7 +207,12 @@ export const TeamScreen = () => {
               member={member}
               isCurrentUser={member.userId === user?.id}
               onPress={
-                canManageMember(member) ? () => setSelectedMember(member) : undefined
+                canManageMember(member)
+                  ? () => {
+                      setSelectedMember(member);
+                      setIsSheetOpen(true);
+                    }
+                  : undefined
               }
             />
           )}
@@ -224,8 +256,9 @@ export const TeamScreen = () => {
 
       <MemberActionsSheet
         member={selectedMember}
-        visible={selectedMember !== null}
-        onClose={() => setSelectedMember(null)}
+        visible={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        onClosed={handleSheetClosed}
         canManageRole={canManage}
         canRemove={canRemove}
         onChangeRole={handleChangeRole}

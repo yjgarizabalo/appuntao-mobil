@@ -31,6 +31,7 @@ import { env } from '@/core/config/env';
 import { isOffline } from '@/core/connectivity';
 import { getDeviceId } from '@/core/device/deviceIdentity';
 import { AppError, toAppError } from '@/core/errors/AppError';
+import { notifyBusinessForbidden } from './businessAccess';
 import { toHttpAppError } from './httpError';
 import {
   clearTokens,
@@ -223,6 +224,13 @@ http.interceptors.response.use(
   async (error: AxiosError) => {
     const config = error.config as RetriableConfig | undefined;
     const status = error.response?.status;
+
+    // Un 403 sobre un negocio suele significar que el acceso cambió (ver
+    // `businessAccess.ts`). Se avisa y el error sigue su camino normal.
+    const businessId = config?.headers?.['x-business-id'];
+    if (status === 403 && typeof businessId === 'string' && businessId) {
+      notifyBusinessForbidden(businessId);
+    }
 
     const canRetry =
       status === 401 &&

@@ -10,9 +10,19 @@
  * usuario), así que se confirma el éxito y se lleva al login con el correo ya
  * escrito.
  *
- * Cierra con la casilla de aceptación de los Términos y Condiciones
- * (`TermsAcceptance`), que es la última puerta antes de enviar: sin marcarla
+ * Cierra con la casilla de aceptación de los documentos legales
+ * (`LegalAcceptance`), que es la última puerta antes de enviar: sin marcarla
  * no sale ningún dato personal hacia el servidor.
+ *
+ * Los documentos se piden al backend al abrir la pantalla (`GET /legal/current?audience=ALL_USERS`)
+ * y sus ids viajan en el registro como prueba de qué versión se aceptó. Dos
+ * casos que el formulario resuelve solo:
+ *  - **los documentos no cargan o no hay publicados**: el botón "Crear cuenta"
+ *    queda deshabilitado y la tarjeta dice por qué, antes de que el usuario
+ *    llene nada en vano (el backend respondería 503);
+ *  - **se publicó una versión nueva mientras llenaba el formulario**: el
+ *    backend rechaza los ids viejos; se recargan los documentos, se desmarca la
+ *    casilla y se le pide aceptar otra vez, sin perder lo que escribió.
  */
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -20,6 +30,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
 import { haptics } from '@/core/haptics';
+import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useForm } from '@/core/hooks/useForm';
 import { routes } from '@/core/navigation/routes';
 import {
@@ -32,8 +43,10 @@ import {
   required,
 } from '@/core/utils/validation';
 import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '@/domain/constants';
-import { TermsAcceptance } from '@/features/auth/components/TermsAcceptance';
+import { joinLegalTitles, type LegalDocument } from '@/domain/legal';
 import { useSession } from '@/features/auth/session/SessionProvider';
+import { legalApi } from '@/features/legal/api/legalApi';
+import { LegalAcceptance } from '@/features/legal/components/LegalAcceptance';
 import {
   AppBar,
   Button,
@@ -50,6 +63,7 @@ import { theme } from '@/theme';
 export const RegisterScreen = () => {
   const { register } = useSession();
   const dialog = useDialog();
+  const legal = useAsyncData(legalApi.forRegistration);
 
   /**
    * La aceptación no vive en `useForm`: el hook maneja campos de texto, y un
@@ -86,8 +100,20 @@ export const RegisterScreen = () => {
     onSubmit: async (values) => {
       // Primero que nada: sin consentimiento no se manda un solo dato
       // personal al servidor.
+      const documents = legal.data;
+      if (!documents?.length) {
+        setTermsError(
+          documents
+            ? 'No es posible crear cuentas en este momento.'
+            : 'Necesitamos cargar los documentos legales antes de crear tu cuenta.',
+        );
+        haptics.warning();
+        void legal.reload();
+        return;
+      }
+
       if (!acceptedTerms) {
-        setTermsError('Debes aceptar los Términos y Condiciones para crear tu cuenta');
+        setTermsError('Debes aceptar los documentos legales para crear tu cuenta');
         haptics.warning();
         return;
       }
@@ -106,6 +132,7 @@ export const RegisterScreen = () => {
           email: values.email.trim().toLowerCase(),
           phone: values.phone.trim(),
           password: values.password,
+          acceptedLegalDocumentIds: documents.map((doc) => doc.id),
         });
 
         dialog.show({
@@ -117,6 +144,24 @@ export const RegisterScreen = () => {
         });
       } catch (caught) {
         const error = toAppError(caught);
+
+        // ¿Cambiaron los documentos mientras llenaba el formulario? Se
+        // comprueba contra el backend en vez de leer el mensaje del error, que
+        // es texto para personas y puede cambiar.
+        if (error.code === 'VALIDATION' || error.status === 503) {
+          const fresh = await legalApi.forRegistration().catch(() => null);
+          if (fresh && !sameDocuments(fresh, documents)) {
+            legal.setData(fresh);
+            setAcceptedTerms(false);
+            setTermsError(
+              fresh.length
+                ? 'Actualizamos nuestros documentos legales. Léelos y vuelve a aceptarlos.'
+                : 'No es posible crear cuentas en este momento.',
+            );
+            haptics.warning();
+            return;
+          }
+        }
 
         // Si el backend indica qué campo falló, se marca ese campo en lugar de
         // mostrar un diálogo genérico.
@@ -139,10 +184,14 @@ export const RegisterScreen = () => {
       padded
       keyboardAware
       footer={
+        // Sin documentos cargados (cargando, error o sin publicar) no hay nada
+        // que aceptar, así que no se puede crear la cuenta. La tarjeta legal
+        // explica por qué y ofrece reintentar.
         <Button
           label="Crear cuenta"
           onPress={form.submit}
           loading={form.isSubmitting}
+          disabled={!legal.data?.length}
           size="lg"
           fullWidth
         />
@@ -270,12 +319,27 @@ export const RegisterScreen = () => {
         onSubmitEditing={form.submit}
       />
 
-      <TermsAcceptance accepted={acceptedTerms} onChange={handleAcceptTerms} error={termsError} />
+      <LegalAcceptance
+        documents={legal.data}
+        isLoading={legal.isLoading}
+        loadError={legal.error}
+        onRetry={legal.reload}
+        accepted={acceptedTerms}
+        onChange={handleAcceptTerms}
+        // "Autorizo" y no solo "acepto": la Ley 1581 pide una autorización
+        // previa, expresa e informada para tratar los datos personales.
+        statement={`He leído y acepto ${joinLegalTitles(legal.data ?? [])} de Appuntao, y autorizo el tratamiento de mis datos personales en los términos de esos documentos.`}
+        error={termsError}
+      />
 
       <Dialog {...dialog.props} />
     </Screen>
   );
 };
+
+/** Mismos documentos y mismas versiones (los ids cambian con cada versión). */
+const sameDocuments = (a: LegalDocument[], b: LegalDocument[]): boolean =>
+  a.length === b.length && a.every((doc) => b.some((other) => other.id === doc.id));
 
 const styles = StyleSheet.create({
   subtitle: {

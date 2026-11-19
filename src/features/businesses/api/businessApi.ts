@@ -1,5 +1,5 @@
 /**
- * API de negocios. `GET/POST /business`
+ * API de negocios. `GET/POST /business`, `PATCH /business/:id/inactivate`.
  */
 import { http } from '@/core/http/client';
 import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
@@ -43,5 +43,18 @@ export const businessApi = {
   create: async (draft: BusinessDraft): Promise<Business> => {
     const { data } = await http.post('/business', draft);
     return mapBusiness(toItem(data));
+  },
+
+  /**
+   * `PATCH /business/:id/inactivate` — cierra el negocio (solo el dueño, y
+   * sin deudas por cobrar). Sus datos se eliminan pasado el plazo de
+   * retención; devuelve esa fecha (ISO).
+   */
+  close: async (businessId: string): Promise<{ message: string; dataDeletionScheduledAt: string }> => {
+    const { data } = await http.patch(`/business/${businessId}/inactivate`, {});
+    return {
+      message: String(data?.message ?? ''),
+      dataDeletionScheduledAt: String(data?.dataDeletionScheduledAt ?? ''),
+    };
   },
 };

@@ -13,6 +13,13 @@ interface ApiErrorBody {
   statusCode?: number;
 }
 
+/**
+ * Nest pone en `error` el nombre del estado ("Bad Request") salvo que el
+ * servicio mande un código propio en MAYÚSCULAS_CON_GUIONES. Solo ese se
+ * conserva como `reason`.
+ */
+const REASON_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+
 const firstString = (value: string | string[] | undefined): string | undefined => {
   if (Array.isArray(value)) return value.find((item) => typeof item === 'string');
   return typeof value === 'string' ? value : undefined;
@@ -66,11 +73,18 @@ export const toHttpAppError = (error: unknown): AppError => {
      */
     const backendMessage = Array.isArray(body?.message)
       ? undefined
-      : (firstString(body?.message) ?? body?.error);
+      : (firstString(body?.message) ??
+        (body?.error && !REASON_PATTERN.test(body.error) ? body.error : undefined));
+
+    const reason =
+      typeof body?.error === 'string' && REASON_PATTERN.test(body.error) ? body.error : undefined;
 
     return new AppError(code, {
       status,
       cause: error,
+      reason,
+      payload:
+        body && typeof body === 'object' ? (body as Record<string, unknown>) : undefined,
       fieldErrors: parseFieldErrors(body?.errors),
       // Para 5xx nunca mostramos el texto del servidor: suele ser un stack trace.
       message: code === 'SERVER' ? undefined : backendMessage,

@@ -16,7 +16,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +43,21 @@ export const LoginScreen = () => {
   const { login } = useSession();
   const dialog = useDialog();
   const toast = useToast();
+  const [isReactivating, setIsReactivating] = useState(false);
+
+  /** Repite el login pidiendo reactivar la cuenta. */
+  const reactivate = async (credentials: { identifier: string; password: string }) => {
+    setIsReactivating(true);
+    try {
+      await login({ ...credentials, reactivate: true });
+      toast.success('¡Qué bueno tenerte de vuelta!');
+      router.replace(routes.tabs.home);
+    } catch (caught) {
+      dialog.showError(toAppError(caught));
+    } finally {
+      setIsReactivating(false);
+    }
+  };
 
   const form = useForm({
     initialValues: { identifier: '', password: '' },
@@ -51,14 +66,53 @@ export const LoginScreen = () => {
       password: [required('La contraseña')],
     },
     onSubmit: async (values) => {
+      const credentials = {
+        identifier: values.identifier.trim(),
+        password: values.password,
+      };
+
       try {
-        await login({
-          identifier: values.identifier.trim(),
-          password: values.password,
-        });
+        await login(credentials);
         router.replace(routes.tabs.home);
       } catch (caught) {
         const error = toAppError(caught);
+
+        /**
+         * La contraseña era correcta pero la cuenta no está activa. El backend
+         * solo lo dice después de comprobar la contraseña, así que aquí ya se
+         * sabe que es su dueño:
+         *  - la desactivó él o pidió eliminarla → se ofrece reactivarla, que es
+         *    repetir el login con `reactivate: true` (y cancela la eliminación);
+         *  - la desactivó un administrador → solo soporte puede ayudar.
+         */
+        if (error.code === 'FORBIDDEN' && error.reason) {
+          if (
+            error.reason === 'ACCOUNT_DEACTIVATED' ||
+            error.reason === 'ACCOUNT_DELETION_PENDING'
+          ) {
+            const pendingDeletion = error.reason === 'ACCOUNT_DELETION_PENDING';
+            dialog.confirm({
+              tone: 'warning',
+              title: pendingDeletion ? 'Tu cuenta se va a eliminar' : 'Tu cuenta está desactivada',
+              message: pendingDeletion
+                ? `${error.message} Si la reactivas, se cancela la eliminación y todo sigue como estaba.`
+                : 'La desactivaste tú. Si la reactivas, todo vuelve a estar como lo dejaste.',
+              confirmLabel: pendingDeletion ? 'Conservar mi cuenta' : 'Reactivar mi cuenta',
+              cancelLabel: 'Ahora no',
+              onConfirm: () => {
+                void reactivate(credentials);
+              },
+            });
+            return;
+          }
+
+          if (error.reason === 'ACCOUNT_DISABLED') {
+            dialog.showError(
+              new AppError('FORBIDDEN', { title: 'Cuenta desactivada', message: error.message }),
+            );
+            return;
+          }
+        }
 
         /**
          * Un 401 del login no es una sesión vencida, así que el título por
@@ -173,7 +227,7 @@ export const LoginScreen = () => {
           <Button
             label="Entrar"
             onPress={form.submit}
-            loading={form.isSubmitting}
+            loading={form.isSubmitting || isReactivating}
             size="lg"
             fullWidth
             style={styles.submit}

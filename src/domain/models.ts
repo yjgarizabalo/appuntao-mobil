@@ -98,6 +98,11 @@ export interface Invitation {
 export interface BusinessDraft {
   name: string;
   address: string;
+  /**
+   * Documentos para negocios que se aceptan al crearlo
+   * (`GET /legal/current?audience=BUSINESS_OWNERS`).
+   */
+  acceptedLegalDocumentIds?: string[];
 }
 
 /**
@@ -441,3 +446,57 @@ export const buildClientMovements = (standings: ClientStanding[]): ClientMovemen
 
   return rows.sort((a, b) => b.movement.date - a.movement.date);
 };
+
+/* ── Ciclo de vida de la cuenta y de los negocios ─────────────────────────── */
+
+/** Un miembro al que el dueño puede pasarle el negocio. */
+export interface TransferCandidate {
+  userId: string;
+  name: string;
+  role: BusinessRole;
+}
+
+/** En qué quedó una propuesta de transferencia. */
+export type OwnershipTransferStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED';
+
+/**
+ * Propuesta del dueño de pasarle el negocio a un miembro. El miembro tiene un
+ * plazo para aceptarla o rechazarla; mientras tanto, nada cambia.
+ */
+export interface OwnershipTransfer {
+  id: string;
+  status: OwnershipTransferStatus;
+  businessId: string;
+  businessName: string;
+  fromUserId: string;
+  fromName: string;
+  toUserId: string;
+  toName: string;
+  /** ISO. Pasada esta fecha la propuesta vence sola. */
+  expiresAt: string;
+  /** ISO. Cuándo dejó de estar pendiente; `null` mientras lo está. */
+  respondedAt: string | null;
+  createdAt?: string;
+}
+
+/** Un negocio del que el usuario es dueño, visto antes de eliminar su cuenta. */
+export interface OwnedBusinessSummary {
+  id: string;
+  name: string;
+  /** Clientes activos. */
+  debtorsCount: number;
+  /** Saldo por cobrar (deudas abiertas o con abonos). */
+  pendingBalance: number;
+  transferCandidates: TransferCandidate[];
+  /** Propuesta de transferencia vigente, si la hay. */
+  pendingTransfer: { id: string; toUserId: string; expiresAt: string } | null;
+  /** Última descarga de su información en Excel (ISO), o `null`. */
+  lastExportedAt: string | null;
+}
+
+/** Lo que pasará si el usuario elimina su cuenta (`GET /users/me/deletion-preview`). */
+export interface DeletionPreview {
+  /** Días entre la solicitud y la eliminación definitiva. */
+  gracePeriodDays: number;
+  ownedBusinesses: OwnedBusinessSummary[];
+}

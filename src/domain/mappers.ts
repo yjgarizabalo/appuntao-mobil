@@ -19,15 +19,26 @@ import {
   isBusinessRole,
   isDocumentType,
 } from './constants';
+import {
+  LEGAL_AUDIENCES,
+  type LegalAudience,
+  type LegalDocument,
+  type LegalDocumentSummary,
+} from './legal';
 import type {
   Business,
   BusinessSummary,
   ClientAccount,
   Debt,
   Debtor,
+  DeletionPreview,
   Invitation,
   Member,
+  OwnedBusinessSummary,
+  OwnershipTransfer,
+  OwnershipTransferStatus,
   Payment,
+  TransferCandidate,
   User,
 } from './models';
 
@@ -279,5 +290,131 @@ export const mapClientAccount = (raw: unknown): ClientAccount => {
     businessId: asString(business.id),
     businessName: asString(business.name, 'Tienda'),
     phone: data.phone == null ? undefined : asString(data.phone),
+  };
+};
+
+/* ── Documentos legales ───────────────────────────────────────────────────── */
+
+/**
+ * Resumen de un documento (`pendingLegalDocuments` del login). Los tipos no se
+ * filtran: el catálogo es del backend, y descartar uno que la app no conoce
+ * haría que se envíen menos aceptaciones de las que exige. Sin `title`, se
+ * muestra el código antes que nada.
+ */
+export const mapLegalSummary = (raw: unknown): LegalDocumentSummary | null => {
+  const data = (raw ?? {}) as Raw;
+  const id = asString(data.id);
+  const type = asString(data.type);
+  if (!id || !type) return null;
+  return { id, type, version: asString(data.version), title: asString(data.title) || type };
+};
+
+const LEGAL_AUDIENCE_VALUES: readonly string[] = Object.values(LEGAL_AUDIENCES);
+
+/** Documento completo de `GET /legal/current` o `GET /legal/pending`. */
+export const mapLegalDocument = (raw: unknown): LegalDocument | null => {
+  const summary = mapLegalSummary(raw);
+  if (!summary) return null;
+  const data = raw as Raw;
+  const audience = asString(data.audience);
+  return {
+    ...summary,
+    audience: LEGAL_AUDIENCE_VALUES.includes(audience) ? (audience as LegalAudience) : null,
+    // Ante la duda, obligatorio: pedir de más se corrige con un toque; de menos, no.
+    required: data.required !== false,
+    content: asString(data.content),
+    contentHash: asString(data.contentHash),
+    url: data.url == null ? null : asString(data.url),
+    publishedAt: asString(data.publishedAt),
+  };
+};
+
+/** Lista de documentos, sin los que no se pudieron interpretar. */
+export const mapLegalDocuments = (payload: unknown): LegalDocument[] =>
+  toList<unknown>(payload)
+    .map(mapLegalDocument)
+    .filter((doc): doc is LegalDocument => doc !== null);
+
+/* ── Ciclo de vida de la cuenta y transferencias ──────────────────────────── */
+
+const personName = (raw: unknown): string => {
+  const data = (raw ?? {}) as Raw;
+  return `${asString(data.firstName)} ${asString(data.lastName)}`.trim();
+};
+
+/** `GET /business/ownership-transfers/incoming`, `POST /business/:id/ownership-transfer`… */
+const TRANSFER_STATUSES: readonly OwnershipTransferStatus[] = [
+  'PENDING',
+  'ACCEPTED',
+  'REJECTED',
+  'CANCELLED',
+  'EXPIRED',
+];
+
+export const mapOwnershipTransfer = (raw: unknown): OwnershipTransfer | null => {
+  const data = (raw ?? {}) as Raw;
+  const id = asString(data.id);
+  if (!id) return null;
+  const business = (data.business ?? {}) as Raw;
+  const fromUser = (data.fromUser ?? {}) as Raw;
+  const toUser = (data.toUser ?? {}) as Raw;
+  const status = asString(data.status);
+  return {
+    id,
+    status: (TRANSFER_STATUSES as readonly string[]).includes(status)
+      ? (status as OwnershipTransferStatus)
+      : 'PENDING',
+    businessId: asString(data.businessId) || asString(business.id),
+    businessName: asString(business.name, 'Negocio'),
+    fromUserId: asString(data.fromUserId) || asString(fromUser.id),
+    fromName: personName(fromUser),
+    toUserId: asString(data.toUserId) || asString(toUser.id),
+    toName: personName(toUser),
+    expiresAt: asString(data.expiresAt),
+    respondedAt: data.respondedAt == null ? null : asString(data.respondedAt),
+    createdAt: data.createdAt == null ? undefined : asString(data.createdAt),
+  };
+};
+
+export const mapOwnershipTransfers = (payload: unknown): OwnershipTransfer[] =>
+  toList<unknown>(payload)
+    .map(mapOwnershipTransfer)
+    .filter((transfer): transfer is OwnershipTransfer => transfer !== null);
+
+const mapTransferCandidate = (raw: unknown): TransferCandidate => {
+  const data = (raw ?? {}) as Raw;
+  return {
+    userId: asString(data.userId),
+    name: personName(data) || 'Miembro',
+    role: asBusinessRole(data.role),
+  };
+};
+
+const mapOwnedBusinessSummary = (raw: unknown): OwnedBusinessSummary => {
+  const data = (raw ?? {}) as Raw;
+  const pending = data.pendingTransfer as Raw | null | undefined;
+  return {
+    id: asString(data.id),
+    name: asString(data.name, 'Negocio'),
+    debtorsCount: Number(data.debtorsCount) || 0,
+    pendingBalance: toAmount(data.pendingBalance),
+    transferCandidates: toList<unknown>(data.transferCandidates).map(mapTransferCandidate),
+    pendingTransfer: pending
+      ? {
+          id: asString(pending.id),
+          toUserId: asString(pending.toUserId),
+          expiresAt: asString(pending.expiresAt),
+        }
+      : null,
+    lastExportedAt: data.lastExportedAt == null ? null : asString(data.lastExportedAt),
+  };
+};
+
+/** `GET /users/me/deletion-preview` */
+export const mapDeletionPreview = (raw: unknown): DeletionPreview => {
+  const data = (raw ?? {}) as Raw;
+  return {
+    gracePeriodDays: Number(data.gracePeriodDays) || 15,
+    ownedBusinesses: toList<unknown>(data.ownedBusinesses).map(mapOwnedBusinessSummary),
   };
 };

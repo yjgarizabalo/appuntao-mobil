@@ -27,6 +27,12 @@ export interface LoginCredentials {
   /** Correo, teléfono o número de documento: el backend acepta los tres. */
   identifier: string;
   password: string;
+  /**
+   * Reactiva una cuenta que el propio usuario desactivó o cuya eliminación
+   * está pendiente. Solo se envía después de que el backend respondiera 403
+   * `ACCOUNT_DEACTIVATED` o `ACCOUNT_DELETION_PENDING` y el usuario aceptara.
+   */
+  reactivate?: boolean;
 }
 
 export interface RegisterPayload {
@@ -37,6 +43,11 @@ export interface RegisterPayload {
   email: string;
   phone: string;
   password: string;
+  /**
+   * Ids de **todos** los documentos legales vigentes (`GET /legal/current`).
+   * Sin ellos, o con una versión vieja, el backend rechaza el registro.
+   */
+  acceptedLegalDocumentIds: string[];
 }
 
 export interface AuthSession {

@@ -67,6 +67,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat(LOCALE, {
   minute: '2-digit',
 });
 
+const longDateFormatter = new Intl.DateTimeFormat(LOCALE, {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
 const parseDate = (value: string | number | Date | null | undefined): Date | null => {
   if (value === null || value === undefined) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -77,6 +83,12 @@ const parseDate = (value: string | number | Date | null | undefined): Date | nul
 export const formatDate = (value: string | number | Date | null | undefined): string => {
   const date = parseDate(value);
   return date ? dateFormatter.format(date) : '';
+};
+
+/** `"2026-10-14"` → `"14 de octubre de 2026"`. Para fechas que se leen en un texto. */
+export const formatLongDate = (value: string | number | Date | null | undefined): string => {
+  const date = parseDate(value);
+  return date ? longDateFormatter.format(date) : '';
 };
 
 /** `"2026-01-15T10:30"` → `"15 ene, 10:30"` */

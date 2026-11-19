@@ -40,6 +40,14 @@ interface AppErrorOptions {
    * de un 502 del proxy mientras el servicio despierta.
    */
   detail?: string;
+  /**
+   * Código de negocio que manda el backend en `error` (`ACCOUNT_DEACTIVATED`,
+   * `BUSINESS_CLOSURE_ACK_REQUIRED`…). Es lo que una pantalla compara para
+   * decidir qué hacer; el `message` es texto para personas y puede cambiar.
+   */
+  reason?: string;
+  /** El cuerpo completo de la respuesta, para los datos que acompañan a `reason`. */
+  payload?: Record<string, unknown>;
 }
 
 /** Mensajes por defecto, en español, listos para mostrar al usuario. */
@@ -104,6 +112,9 @@ export class AppError extends Error {
   readonly fieldErrors?: Record<string, string>;
   /** Diagnóstico para logs. Ver `AppErrorOptions.detail`. */
   readonly detail?: string;
+  /** Código de negocio del backend. Ver `AppErrorOptions.reason`. */
+  readonly reason?: string;
+  readonly payload?: Record<string, unknown>;
 
   constructor(code: ErrorCode, options: AppErrorOptions = {}) {
     const copy = DEFAULT_COPY[code];
@@ -114,6 +125,8 @@ export class AppError extends Error {
     this.status = options.status;
     this.fieldErrors = options.fieldErrors;
     this.detail = options.detail;
+    this.reason = options.reason;
+    this.payload = options.payload;
     if (options.cause !== undefined) this.cause = options.cause;
   }
 

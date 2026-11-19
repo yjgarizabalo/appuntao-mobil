@@ -24,7 +24,11 @@ import { getFirstName, pluralize } from '@/core/utils/format';
 import { type BusinessSummary, displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
+import { IncomingTransfersCard } from '@/features/businesses/components/IncomingTransfersCard';
+import {
+  useBusinesses,
+  useRefreshBusinessesOnFocus,
+} from '@/features/businesses/state/BusinessProvider';
 import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
 import { useAppMode } from '@/features/client/state/AppModeProvider';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
@@ -58,6 +62,7 @@ export const HomeScreen = () => {
     error: businessError,
     refresh: refreshBusinesses,
   } = useBusinesses();
+  useRefreshBusinessesOnFocus();
   const { setMode } = useAppMode();
 
   /**
@@ -243,6 +248,9 @@ export const HomeScreen = () => {
       {/* ── Accesos rápidos ─────────────────────────────────────────────── */}
       <View style={styles.body}>
         <StaleNotice visible={debtors.isStale} />
+
+        {/* Solo aparece si alguien le propuso quedarse con un negocio. */}
+        <IncomingTransfersCard />
 
         <View style={styles.quickActions}>
           <QuickAction
