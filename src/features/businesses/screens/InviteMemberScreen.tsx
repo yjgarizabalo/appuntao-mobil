@@ -66,6 +66,25 @@ export const InviteMemberScreen = () => {
     });
   };
 
+  /** Abre WhatsApp con la invitación; si no se puede, muestra el código. */
+  const openWhatsApp = async (phone: string, roleLabel: string, code: string) => {
+    const url = buildWhatsAppUrl(
+      phone,
+      buildTeamInvite({ businessName: activeBusiness?.name, roleLabel, code }),
+    );
+    if (url) {
+      try {
+        haptics.tap();
+        await Linking.openURL(url);
+        router.back();
+        return;
+      } catch {
+        // Si no se pudo abrir WhatsApp, se cae al código para compartirlo a mano.
+      }
+    }
+    showCodeDialog(null, code);
+  };
+
   const form = useForm({
     initialValues: {
       email: '',
@@ -93,38 +112,48 @@ export const InviteMemberScreen = () => {
 
       try {
         if (method === 'email') {
-          const invitation = await invitationApi.create(activeBusinessId, {
+          const share = await invitationApi.create(activeBusinessId, {
             email: values.email.trim(),
             role: values.role,
           });
-          showCodeDialog(values.email.trim(), invitation.code);
+          showCodeDialog(values.email.trim(), share.invitation.code);
           return;
         }
 
         // WhatsApp: se crea la invitación con el teléfono y se abre el chat.
-        const invitation = await invitationApi.create(activeBusinessId, {
+        const share = await invitationApi.create(activeBusinessId, {
           phone: digitsOnly(values.phone),
           role: values.role,
         });
-
-        const url = buildWhatsAppUrl(
-          values.phone,
-          buildTeamInvite({ businessName: activeBusiness?.name, roleLabel, code: invitation.code }),
-        );
-
-        if (url) {
-          try {
-            haptics.tap();
-            await Linking.openURL(url);
-            router.back();
-            return;
-          } catch {
-            // Si no se pudo abrir WhatsApp, se cae al código para compartirlo a mano.
-          }
-        }
-        showCodeDialog(null, invitation.code);
+        await openWhatsApp(values.phone, roleLabel, share.invitation.code);
       } catch (caught) {
         const error = toAppError(caught);
+
+        // Ya había una pendiente para ese contacto: se ofrece reenviarla.
+        const pendingId = error.payload?.invitationId;
+        if (error.reason === 'INVITATION_ALREADY_PENDING' && typeof pendingId === 'string') {
+          dialog.confirm({
+            tone: 'info',
+            title: 'Ya tiene una invitación',
+            message:
+              'Todavía no la ha aceptado. Puedes reenviarla: vuelve a quedar vigente 7 días con el mismo código.',
+            confirmLabel: 'Reenviar',
+            cancelLabel: 'Volver',
+            onConfirm: async () => {
+              try {
+                const share = await invitationApi.resend(activeBusinessId, pendingId);
+                if (method === 'email') {
+                  showCodeDialog(values.email.trim(), share.invitation.code);
+                } else {
+                  await openWhatsApp(values.phone, roleLabel, share.invitation.code);
+                }
+              } catch (resendError) {
+                dialog.showError(toAppError(resendError));
+              }
+            },
+          });
+          return;
+        }
 
         if (error.fieldErrors) {
           form.setFieldErrors(error.fieldErrors);
@@ -133,7 +162,7 @@ export const InviteMemberScreen = () => {
         if (error.code === 'CONFLICT') {
           form.setFieldError(
             method === 'email' ? 'email' : 'phone',
-            'Ya hay una invitación o un miembro con este contacto',
+            error.message || 'Esta persona ya es miembro del negocio',
           );
           return;
         }

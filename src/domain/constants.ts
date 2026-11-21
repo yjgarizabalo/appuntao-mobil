@@ -147,11 +147,19 @@ export const INVITATION_TYPES = ['DEBTOR', 'BUSINESS_USER'] as const;
 export type InvitationType = (typeof INVITATION_TYPES)[number];
 
 /** Enum `InvitationStatus` del backend. */
-export const INVITATION_STATUSES = ['PENDING', 'ACCEPTED', 'EXPIRED'] as const;
+export const INVITATION_STATUSES = [
+  'PENDING',
+  'ACCEPTED',
+  'REJECTED',
+  'CANCELLED',
+  'EXPIRED',
+] as const;
 export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 
 export const INVITATION_STATUS_LABEL: Record<InvitationStatus, string> = {
   PENDING: 'Pendiente',
   ACCEPTED: 'Aceptada',
-  EXPIRED: 'Expirada',
+  REJECTED: 'Rechazada',
+  CANCELLED: 'Cancelada',
+  EXPIRED: 'Vencida',
 };

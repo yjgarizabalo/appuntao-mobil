@@ -24,6 +24,7 @@ import { getFirstName, pluralize } from '@/core/utils/format';
 import { type BusinessSummary, displayName } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { BusinessSwitcher } from '@/features/businesses/components/BusinessSwitcher';
+import { IncomingInvitationsCard } from '@/features/businesses/components/IncomingInvitationsCard';
 import { IncomingTransfersCard } from '@/features/businesses/components/IncomingTransfersCard';
 import {
   useBusinesses,
@@ -134,6 +135,11 @@ export const HomeScreen = () => {
     return (
       <Screen padded>
         <View style={[styles.emptyHost, { paddingTop: insets.top }]}>
+          {/*
+            Quien se acaba de registrar porque lo invitaron cae aquí: la
+            invitación tiene que verse antes que "crea tu negocio".
+          */}
+          <IncomingInvitationsCard />
           {/*
             La acción secundaria existe porque no todo el que se registra tiene
             tienda: hay quien entra solo a mirar lo que le fían. Sin ella
@@ -251,6 +257,8 @@ export const HomeScreen = () => {
 
         {/* Solo aparece si alguien le propuso quedarse con un negocio. */}
         <IncomingTransfersCard />
+        {/* Solo aparece si alguien lo invitó a un equipo o a ver su cuenta. */}
+        <IncomingInvitationsCard />
 
         <View style={styles.quickActions}>
           <QuickAction

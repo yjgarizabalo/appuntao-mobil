@@ -33,6 +33,7 @@ import type {
   Debtor,
   DeletionPreview,
   Invitation,
+  InvitationShare,
   Member,
   OwnedBusinessSummary,
   OwnershipTransfer,
@@ -48,6 +49,13 @@ const asString = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : typeof value === 'number' ? String(value) : fallback;
 
 const asBoolean = (value: unknown): boolean => value === true || value === 'true';
+
+/** Texto no vacío, o `undefined` si no vino. */
+const optionalString = (value: unknown): string | undefined => {
+  if (value == null) return undefined;
+  const text = String(value);
+  return text ? text : undefined;
+};
 
 const asDocumentType = (value: unknown): DocumentType => {
   const raw = asString(value).toUpperCase();
@@ -148,7 +156,14 @@ export const mapBusiness = (raw: unknown): Business => {
 
 const asInvitationStatus = (value: unknown): InvitationStatus => {
   const raw = asString(value).toUpperCase();
-  if (raw === 'ACCEPTED' || raw === 'EXPIRED') return raw;
+  if (
+    raw === 'ACCEPTED' ||
+    raw === 'REJECTED' ||
+    raw === 'CANCELLED' ||
+    raw === 'EXPIRED'
+  ) {
+    return raw;
+  }
   return 'PENDING';
 };
 
@@ -160,7 +175,12 @@ export const mapInvitation = (raw: unknown): Invitation => {
   return {
     id: asString(data.id),
     code: asString(data.code),
-    businessId: asString(data.businessId),
+    // La vista de la persona invitada trae el negocio anidado, sin `businessId`.
+    businessId: asString(data.businessId) || relationId(data.business),
+    businessName: optionalString((data.business as Raw | null | undefined)?.name),
+    debtorId: optionalString(data.debtorId) ?? optionalString((data.debtor as Raw | null | undefined)?.id),
+    debtorName: optionalString((data.debtor as Raw | null | undefined)?.name),
+    invitedByName: data.createdBy ? personName(data.createdBy) || undefined : undefined,
     email: data.email == null ? undefined : asString(data.email),
     phone: data.phone == null ? undefined : asString(data.phone),
     // En las invitaciones de tipo DEBTOR el rol viene nulo: se respeta.
@@ -201,6 +221,18 @@ export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
         ? (balance ?? 0) > 0 || (totalBalance ?? 0) > 0
         : asBoolean(data.hasPendingDebt),
     businessId: asString(data.businessId) || relationId(data.business) || businessId,
+    isLinked: data.userId != null || data.user != null,
+  };
+};
+
+/** `POST /invitations` y `POST /invitations/:id/resend`. */
+export const mapInvitationShare = (raw: unknown): InvitationShare => {
+  const data = (raw ?? {}) as Raw;
+  return {
+    invitation: mapInvitation(data.invitation ?? data),
+    shareText: asString(data.shareText),
+    whatsappUrl: optionalString(data.whatsappUrl) ?? null,
+    emailSent: asBoolean(data.emailSent),
   };
 };
 

@@ -28,6 +28,7 @@ import { formatRelativeDate, getFirstName, pluralize } from '@/core/utils/format
 import { type ClientStanding, displayName, summarizeStandings } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { clientApi } from '@/features/client/api/clientApi';
+import { IncomingInvitationsCard } from '@/features/businesses/components/IncomingInvitationsCard';
 import { ClientNotLinked } from '@/features/client/components/ClientNotLinked';
 import { ClientStoreCard } from '@/features/client/components/ClientStoreCard';
 import { ModeSwitcher } from '@/features/client/components/ModeSwitcher';
@@ -161,6 +162,9 @@ export const ClientWalletScreen = () => {
 
       <View style={styles.body}>
         <StaleNotice visible={standings.isStale} />
+
+        {/* Una tienda que lo invitó a ver su cuenta y todavía no responde. */}
+        <IncomingInvitationsCard />
 
         {/* ── Estados de la lista ───────────────────────────────────────── */}
         {standings.isLoading ? (

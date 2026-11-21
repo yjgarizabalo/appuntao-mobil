@@ -67,6 +67,9 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
 - [**2026-11-19-exportar-negocio.md**](bitacora/2026-11-19-exportar-negocio.md) —
   descargar el Excel del negocio desde el perfil, al cerrarlo y al eliminar la cuenta.
   Agrega `expo-file-system` y `expo-sharing`: hace falta un build nuevo.
+- [**2026-11-19-invitaciones.md**](bitacora/2026-11-19-invitaciones.md) — invitar
+  clientes a ver su cuenta (la única forma de vincularlos), invitaciones recibidas al
+  entrar, reenviar y cancelar. Arregla "Tengo un código", que aceptaba con un código vacío.
 
 ---
 

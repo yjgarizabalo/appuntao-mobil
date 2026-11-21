@@ -58,6 +58,16 @@ export const routes = {
       ({ pathname: '/client/[id]', params: { id: debtorId, businessId } }) as unknown as Href,
     edit: (debtorId: string, businessId: string): Href =>
       ({ pathname: '/client/edit', params: { id: debtorId, businessId } }) as unknown as Href,
+    /** Invitar al cliente a ver su cuenta (invitación `DEBTOR`). */
+    invite: (
+      debtorId: string,
+      businessId: string,
+      prefill: { name?: string; phone?: string } = {},
+    ): Href =>
+      ({
+        pathname: '/client/invite',
+        params: { id: debtorId, businessId, ...prefill },
+      }) as unknown as Href,
   },
 
   /**

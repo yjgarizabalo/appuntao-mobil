@@ -74,16 +74,27 @@ export interface Member {
 }
 
 /**
- * Invitación para sumar a alguien a un negocio. La app crea y consume solo las
- * de tipo `BUSINESS_USER`; las `DEBTOR` (vincular un cliente a su cuenta)
- * existen en el backend pero esta app no las genera.
+ * Invitación de un negocio a una persona, dirigida a su correo o teléfono.
+ *
+ *  - `BUSINESS_USER`: entrar al equipo con un rol.
+ *  - `DEBTOR`: vincular su cuenta a una ficha de cliente, para ver lo que debe.
+ *    Es la **única** forma de crear ese vínculo.
+ *
+ * El negocio ve el código y el contacto; la persona invitada no (el backend
+ * se los oculta), pero sí el nombre del negocio y de quién la invitó.
  */
 export interface Invitation {
   id: string;
-  /** Código corto que el invitado teclea para aceptar. */
+  /** Código corto para aceptarla. Vacío en la vista de la persona invitada. */
   code: string;
   /** Negocio al que pertenece la invitación. */
   businessId: string;
+  businessName?: string;
+  /** Ficha de cliente, en las de tipo `DEBTOR`. */
+  debtorId?: string;
+  debtorName?: string;
+  /** Quién la creó, ya resuelto como nombre. */
+  invitedByName?: string;
   email?: string;
   phone?: string;
   /** Rol que recibirá el invitado. `null` en las invitaciones de tipo DEBTOR. */
@@ -145,6 +156,23 @@ export interface Debtor {
    * de un negocio concreto no, y en ese caso se rellena en el cliente.
    */
   businessId?: string;
+  /**
+   * Si la ficha ya está vinculada a una cuenta de Appuntao: esa persona ve su
+   * saldo en el modo cliente. Se vincula aceptando una invitación `DEBTOR`.
+   */
+  isLinked: boolean;
+}
+
+/**
+ * Respuesta al crear o reenviar una invitación: la invitación, el mensaje
+ * listo para compartir y el enlace de WhatsApp (si va a un teléfono).
+ */
+export interface InvitationShare {
+  invitation: Invitation;
+  shareText: string;
+  whatsappUrl: string | null;
+  /** Si el backend alcanzó a enviar el correo. */
+  emailSent: boolean;
 }
 
 export interface DebtorDraft {

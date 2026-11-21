@@ -20,7 +20,9 @@ export type BusinessAction =
   | 'debt:changeStatus' // PATCH /debts/:id/status
   | 'payment:create' // POST /payments y /payments/global
   | 'payment:reverse' // POST /payments/global/reverse/:groupId
-  | 'member:invite' // POST /invitations
+  | 'member:invite' // POST /invitations (equipo)
+  | 'client:invite' // POST /invitations (cliente, tipo DEBTOR), reenviar y cancelar
+  | 'client:unlink' // PATCH /debtors/:id/unlink
   | 'member:manage' // POST/PATCH /business-users
   | 'member:remove'; // DELETE /business-users/:id
 
@@ -33,6 +35,10 @@ const ACTION_ROLES: Record<BusinessAction, readonly BusinessRole[]> = {
   'payment:create': ['OWNER', 'ADMIN', 'CASHIER'],
   'payment:reverse': ['OWNER', 'ADMIN'],
   'member:invite': ['OWNER', 'ADMIN'],
+  // El cajero atiende a los clientes en el mostrador: puede invitarlos, pero
+  // no al equipo (el backend lo rechaza con 403).
+  'client:invite': ['OWNER', 'ADMIN', 'CASHIER'],
+  'client:unlink': ['OWNER', 'ADMIN'],
   'member:manage': ['OWNER', 'ADMIN'],
   'member:remove': ['OWNER'],
 };

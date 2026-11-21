@@ -1,34 +1,38 @@
 /**
  * Canjear un código de invitación.
  *
- * Es la contraparte de "Invitar": la persona que recibió el correo (o el código
- * a mano) lo teclea aquí. Se eligió el código dentro de la app en vez de un
- * deep link porque es lo que el backend ya soporta sin cambios y funciona en
- * Expo Go (un deep link `https` exigiría un dev build).
+ * Es el respaldo de la tarjeta de invitaciones recibidas: lo normal es que la
+ * invitación aparezca sola al entrar, porque va dirigida al correo o teléfono
+ * de la cuenta. El código sirve cuando la persona lo recibió por WhatsApp y
+ * prefiere escribirlo, o cuando la invitación no le aparece.
  *
- * Una sola pantalla atiende los **dos** tipos de invitación que emite el
- * backend, porque para quien lo recibe un código es un código y no tiene por
- * qué saber de qué clase es:
+ * Una sola pantalla atiende los **dos** tipos, porque para quien lo recibe un
+ * código es un código:
  *
- *  - `BUSINESS_USER` → entra al equipo del negocio con un rol y queda en modo
- *    tendero;
+ *  - `BUSINESS_USER` → entra al equipo con un rol y queda en modo tendero;
  *  - `DEBTOR` → vincula su cuenta a la ficha de cliente que la tienda ya tenía
- *    (`Debtor.userId`) y queda en modo cliente, viendo lo que debe.
+ *    y queda en modo cliente, viendo lo que debe.
  *
- * El flujo valida el código con `GET /invitations/:code` para poder explicar
- * qué va a pasar antes de confirmar, y solo entonces lo acepta.
+ * Primero se pide la vista previa (`GET /invitations/:code`) para explicar qué
+ * va a pasar, y solo entonces se acepta **con el código que escribió**: la
+ * vista previa no trae el código, porque el backend no se lo muestra a la
+ * persona invitada.
+ *
+ * Solo la destinataria puede usarlo. Si la cuenta tiene otro teléfono o correo,
+ * el backend responde 403 y se explica junto al campo.
  */
 import { router } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
 import { useForm } from '@/core/hooks/useForm';
-import { routes } from '@/core/navigation/routes';
 import { required } from '@/core/utils/validation';
 import { BUSINESS_ROLE_LABEL } from '@/domain/constants';
-import { invitationApi } from '@/features/businesses/api/invitationApi';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
-import { useAppMode } from '@/features/client/state/AppModeProvider';
+import {
+  invitationApi,
+  normalizeInvitationCode,
+} from '@/features/businesses/api/invitationApi';
+import { useFinishAcceptedInvitation } from '@/features/businesses/model/invitationFlow';
 import {
   AppBar,
   Button,
@@ -38,43 +42,17 @@ import {
   Text,
   TextField,
   useDialog,
-  useToast,
 } from '@/ui';
 import { theme } from '@/theme';
 
 export const AcceptInvitationScreen = () => {
-  const { refresh: refreshBusinesses, selectBusiness } = useBusinesses();
-  const { setMode, refreshAccounts } = useAppMode();
+  const finish = useFinishAcceptedInvitation();
   const dialog = useDialog();
-  const toast = useToast();
 
-  /** `BUSINESS_USER`: el usuario entra al equipo y sigue como tendero. */
-  const joinTeam = async (code: string, businessId: string | null) => {
+  const accept = async (code: string) => {
     try {
-      await invitationApi.accept(code);
-      await refreshBusinesses();
-      // El negocio recién aceptado pasa a ser el activo, que es a donde el
-      // usuario quiere entrar.
-      if (businessId) selectBusiness(businessId);
-      toast.success('¡Ya eres parte del equipo!');
-      router.replace(routes.tabs.businesses);
-    } catch (caught) {
-      dialog.showError(toAppError(caught));
-    }
-  };
-
-  /**
-   * `DEBTOR`: el usuario queda vinculado a la ficha que la tienda ya tenía y
-   * se le deja directamente en el modo cliente. Cambiar de modo aquí no es
-   * presuntuoso: acaba de pedir explícitamente ver su cuenta en esa tienda.
-   */
-  const linkAsClient = async (code: string) => {
-    try {
-      await invitationApi.accept(code);
-      await refreshAccounts();
-      setMode('client');
-      toast.success('¡Listo! Ya puedes ver tu cuenta en esa tienda.');
-      router.replace(routes.clientMode.wallet);
+      const result = await invitationApi.acceptByCode(code);
+      await finish(result);
     } catch (caught) {
       dialog.showError(toAppError(caught));
     }
@@ -86,18 +64,19 @@ export const AcceptInvitationScreen = () => {
       code: [required('El código')],
     },
     onSubmit: async (values) => {
-      const code = values.code.trim().toLowerCase();
+      const code = normalizeInvitationCode(values.code);
       try {
         const invitation = await invitationApi.getByCode(code);
+        const business = invitation.businessName ?? 'este negocio';
 
         if (invitation.type === 'DEBTOR') {
           dialog.confirm({
             tone: 'info',
-            title: '¿Vincularte a esta tienda?',
+            title: `¿Ver tu cuenta en ${business}?`,
             message:
               'Vas a ver lo que debes y tu historial de abonos. La tienda sigue siendo quien registra los vales y los pagos.',
-            confirmLabel: 'Vincularme',
-            onConfirm: () => void linkAsClient(invitation.code),
+            confirmLabel: 'Ver mi cuenta',
+            onConfirm: () => void accept(code),
           });
           return;
         }
@@ -105,10 +84,10 @@ export const AcceptInvitationScreen = () => {
         const roleLabel = invitation.role ? BUSINESS_ROLE_LABEL[invitation.role] : 'miembro';
         dialog.confirm({
           tone: 'info',
-          title: '¿Unirte al negocio?',
+          title: `¿Unirte a ${business}?`,
           message: `Entrarás como ${roleLabel}. Podrás empezar a trabajar de una vez.`,
           confirmLabel: 'Unirme',
-          onConfirm: () => void joinTeam(invitation.code, invitation.businessId ?? null),
+          onConfirm: () => void accept(code),
         });
       } catch (caught) {
         const error = toAppError(caught);
@@ -117,12 +96,13 @@ export const AcceptInvitationScreen = () => {
           form.setFieldErrors(error.fieldErrors);
           return;
         }
-        // Código inexistente, ya usado o expirado: el backend manda un mensaje
-        // claro en español, así que se muestra junto al campo.
+        // Código inexistente, vencido, ya usado o para otra persona: el
+        // backend manda un mensaje claro en español, así que va junto al campo.
         if (
           error.code === 'NOT_FOUND' ||
           error.code === 'VALIDATION' ||
-          error.code === 'CONFLICT'
+          error.code === 'CONFLICT' ||
+          error.code === 'FORBIDDEN'
         ) {
           form.setFieldError('code', error.message);
           return;
@@ -154,19 +134,19 @@ export const AcceptInvitationScreen = () => {
         Tengo un código
       </Text>
       <Text variant="body" color="textMuted" style={styles.subtitle}>
-        Escribe el código que te compartieron para unirte a un negocio o para vincularte a
-        una tienda donde te fían.
+        Escribe el código que te compartieron para unirte a un negocio o para ver tu cuenta en
+        una tienda donde te fían. Tiene que ser para el celular o el correo de tu cuenta.
       </Text>
 
       <TextField
         label="Código de invitación"
-        placeholder="a1b2c3"
+        placeholder="ABCD2345XY"
         icon="key-outline"
         value={form.values.code}
         onChangeText={form.handleChange('code')}
         onBlur={form.handleBlur('code')}
         error={form.visibleError('code')}
-        autoCapitalize="none"
+        autoCapitalize="characters"
         autoCorrect={false}
         returnKeyType="done"
         onSubmitEditing={form.submit}

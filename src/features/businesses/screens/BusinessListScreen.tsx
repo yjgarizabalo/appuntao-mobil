@@ -16,6 +16,7 @@ import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { haptics } from '@/core/haptics';
 import { routes } from '@/core/navigation/routes';
 import { BusinessRow } from '@/features/businesses/components/BusinessRow';
+import { IncomingInvitationsCard } from '@/features/businesses/components/IncomingInvitationsCard';
 import { IncomingTransfersCard } from '@/features/businesses/components/IncomingTransfersCard';
 import {
   useBusinesses,
@@ -60,7 +61,12 @@ export const BusinessListScreen = () => {
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={<IncomingTransfersCard />}
+          ListHeaderComponent={
+            <>
+              <IncomingTransfersCard />
+              <IncomingInvitationsCard />
+            </>
+          }
           refreshControl={
             <RefreshControl
               refreshing={isLoading}

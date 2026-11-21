@@ -43,6 +43,7 @@ export default function AppLayout() {
       <Stack.Screen name="store/[id]" />
       <Stack.Screen name="client/new" options={{ presentation: formPresentation }} />
       <Stack.Screen name="client/edit" options={{ presentation: formPresentation }} />
+      <Stack.Screen name="client/invite" options={{ presentation: formPresentation }} />
       <Stack.Screen name="business/new" options={{ presentation: formPresentation }} />
       <Stack.Screen name="business/transfer" options={{ presentation: formPresentation }} />
       <Stack.Screen name="team/index" />
