@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { toAppError } from '@/core/errors/AppError';
 import { haptics } from '@/core/haptics';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { routes } from '@/core/navigation/routes';
 import { formatMoney, formatRelativeDate } from '@/core/utils/format';
 import { buildPaymentNotice, buildWhatsAppShareUrl } from '@/core/utils/whatsapp';
 import {
@@ -63,7 +64,7 @@ const MOVEMENTS_PAGE = 15;
 export const ClientStoreScreen = () => {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
-  const { accounts } = useAppMode();
+  const { accounts, refreshAccounts } = useAppMode();
   const dialog = useDialog();
 
   const params = useLocalSearchParams<{ id?: string; businessId?: string }>();
@@ -136,6 +137,31 @@ export const ClientStoreScreen = () => {
       dialog.showError(toAppError(caught));
     }
   }, [account, balance, dialog, user]);
+
+  /**
+   * Dejar de ver esta tienda. La tienda conserva la ficha y sus vales, y
+   * puede volver a invitarlo; por eso se dice así y no "eliminar".
+   */
+  const leaveStore = useCallback(() => {
+    if (!account) return;
+    dialog.confirm({
+      tone: 'warning',
+      title: `¿Dejar de ver ${account.businessName}?`,
+      message:
+        'Ya no verás aquí lo que debes en esta tienda. Tu deuda no cambia: la tienda la sigue llevando y puede volver a invitarte.',
+      confirmLabel: 'Dejar de verla',
+      cancelLabel: 'Volver',
+      onConfirm: async () => {
+        try {
+          await clientApi.leave(account.debtorId);
+          await refreshAccounts();
+          router.replace(routes.clientMode.wallet);
+        } catch (caught) {
+          dialog.showError(toAppError(caught));
+        }
+      },
+    });
+  }, [account, dialog, refreshAccounts]);
 
   /* ── Parámetros incompletos ────────────────────────────────────────────── */
 
@@ -335,6 +361,15 @@ export const ClientStoreScreen = () => {
             ) : null}
           </Card>
         )}
+
+        <Button
+          label="Dejar de ver esta tienda"
+          variant="ghost"
+          icon="eye-off-outline"
+          onPress={leaveStore}
+          fullWidth
+          style={styles.leave}
+        />
       </View>
 
       <Dialog {...dialog.props} />
@@ -343,6 +378,9 @@ export const ClientStoreScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  leave: {
+    marginTop: theme.spacing.xl,
+  },
   hero: {
     paddingHorizontal: theme.layout.gutter,
     paddingBottom: theme.spacing.xl,
