@@ -97,9 +97,14 @@ export const personName: Validator = (value) =>
     ? 'Solo letras, espacios, apóstrofos, puntos y guiones'
     : undefined;
 
-/** Celular colombiano: 10 dígitos que empiezan por 3. */
+/**
+ * Celular colombiano: 10 dígitos que empiezan por 3. Acepta el indicativo
+ * (`+57 300 123 4567`), como el backend, porque así se copia de WhatsApp o de
+ * los contactos.
+ */
 export const phone: Validator = (value) => {
-  const digits = digitsOnly(value);
+  const raw = digitsOnly(value);
+  const digits = raw.length === 12 && raw.startsWith('57') ? raw.slice(2) : raw;
   if (digits.length === 0) return 'El teléfono es obligatorio';
   if (digits.length !== 10) return 'El celular debe tener 10 dígitos';
   if (!digits.startsWith('3')) return 'El celular debe empezar por 3';

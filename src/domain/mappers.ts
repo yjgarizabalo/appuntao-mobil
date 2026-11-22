@@ -199,10 +199,9 @@ export const mapDebtor = (raw: unknown, businessId?: string): Debtor => {
 
   /**
    * El saldo se deja en `undefined` cuando el backend no lo manda, y esa
-   * distinción importa: la tabla `Debtor` no tiene columna `balance`, así que
-   * `GET /debtors/:id` no devuelve ninguno. Convertirlo en `0` hacía que el
-   * detalle del cliente mostrara "Al día" y deshabilitara el cobro aunque
-   * hubiera deudas abiertas. Solo el listado manda `totalBalance`.
+   * distinción importa: convertirlo en `0` hacía que el detalle del cliente
+   * mostrara "Al día" y deshabilitara el cobro aunque hubiera deudas
+   * abiertas. El listado, el resumen y el detalle mandan `totalBalance`.
    */
   const balance = data.balance === undefined ? undefined : toAmount(data.balance);
   const totalBalance = data.totalBalance === undefined ? undefined : toAmount(data.totalBalance);

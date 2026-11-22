@@ -143,12 +143,15 @@ export interface Debtor {
   documentNumber: string;
   phone: string;
   /**
-   * Saldo pendiente en este negocio, cuando el backend lo manda. Es opcional a
-   * propósito: `GET /debtors/:id` no devuelve saldo (la tabla no tiene esa
-   * columna) y hay que distinguir "no vino" de "es cero".
+   * Saldo pendiente con otro nombre (`balance`). Hoy ningún endpoint de
+   * clientes lo manda; se conserva por compatibilidad. Es opcional a propósito,
+   * para distinguir "no vino" de "es cero".
    */
   balance?: number;
-  /** Saldo consolidado en todos los negocios del usuario. */
+  /**
+   * Saldo de la ficha en su negocio: la suma de sus deudas abiertas o
+   * parciales. Lo mandan el listado, el resumen y el detalle.
+   */
   totalBalance?: number;
   hasPendingDebt?: boolean;
   /**
