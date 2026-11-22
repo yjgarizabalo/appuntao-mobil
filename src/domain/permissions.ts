@@ -17,7 +17,7 @@ export type BusinessAction =
   | 'debtor:create' // POST /debtors
   | 'debtor:edit' // PATCH /debtors/:id (editar / inactivar)
   | 'debt:create' // POST /debts
-  | 'debt:changeStatus' // PATCH /debts/:id/status
+  | 'debt:cancel' // PATCH /debts/:id/status (anular)
   | 'payment:create' // POST /payments y /payments/global
   | 'payment:reverse' // POST /payments/global/reverse/:groupId
   | 'member:invite' // POST /invitations (equipo)
@@ -31,7 +31,9 @@ const ACTION_ROLES: Record<BusinessAction, readonly BusinessRole[]> = {
   'debtor:create': ['OWNER', 'ADMIN', 'CASHIER'],
   'debtor:edit': ['OWNER', 'ADMIN'],
   'debt:create': ['OWNER', 'ADMIN', 'CASHIER'],
-  'debt:changeStatus': ['OWNER', 'ADMIN', 'CASHIER'],
+  // Anular borra plata del saldo sin un pago que lo respalde: como el reverso
+  // de pagos, queda para el dueño y el administrador.
+  'debt:cancel': ['OWNER', 'ADMIN'],
   'payment:create': ['OWNER', 'ADMIN', 'CASHIER'],
   'payment:reverse': ['OWNER', 'ADMIN'],
   'member:invite': ['OWNER', 'ADMIN'],
