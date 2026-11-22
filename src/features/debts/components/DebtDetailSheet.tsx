@@ -8,6 +8,9 @@
  * Desde aquí también se abona a **esta** deuda (`POST /payments`), a
  * diferencia del botón de la pantalla, que reparte el pago entre todas
  * (`POST /payments/global`).
+ *
+ * Y se anula una deuda mal registrada, solo si todavía no tiene abonos: con
+ * abonos, anularla escondería plata que sí entró.
  */
 import { StyleSheet, View } from 'react-native';
 
@@ -28,6 +31,11 @@ export interface DebtDetailSheetProps {
   debt: Debt | null;
   /** Abre el cobro de esta deuda. */
   onRegisterPayment: (debt: Debt) => void;
+  /**
+   * Pide anular esta deuda. Sin él (el cajero no puede anular) no se muestra
+   * la opción.
+   */
+  onCancelDebt?: (debt: Debt) => void;
 }
 
 export const DebtDetailSheet = ({
@@ -35,6 +43,7 @@ export const DebtDetailSheet = ({
   onClose,
   debt,
   onRegisterPayment,
+  onCancelDebt,
 }: DebtDetailSheetProps) => {
   if (!debt) return null;
 
@@ -43,6 +52,10 @@ export const DebtDetailSheet = ({
     0,
   );
   const isOpen = debt.status !== 'PAID' && debt.status !== 'CANCELLED';
+  const isCancelled = debt.status === 'CANCELLED';
+  // Lo mismo que exige el backend: sin abonos y sin ningún otro movimiento.
+  const canCancel =
+    onCancelDebt !== undefined && debt.status === 'OPEN' && debt.payments.length === 0;
   const isOverdue =
     isOpen && debt.dueDate.length > 0 && new Date(debt.dueDate).getTime() < Date.now();
 
@@ -71,7 +84,7 @@ export const DebtDetailSheet = ({
       {/* Saldo de esta deuda: es el dato por el que se abre la hoja. */}
       <View style={[styles.balanceCard, isOpen ? null : styles.balanceCardSettled]}>
         <Text variant="overline" color="textSubtle">
-          {isOpen ? 'Falta por pagar' : 'Esta deuda ya no suma'}
+          {isOpen ? 'Falta por pagar' : isCancelled ? 'Anulada: no se cobra' : 'Esta deuda ya no suma'}
         </Text>
         <Text variant="title2" color={isOpen ? 'dangerStrong' : 'brandStrong'}>
           {formatMoney(debt.remainingAmount)}
@@ -132,6 +145,21 @@ export const DebtDetailSheet = ({
           </View>
         </View>
       ))}
+
+      {canCancel ? (
+        <View style={styles.cancelSection}>
+          <Text variant="caption" color="textMuted">
+            ¿La registraste por error? Anúlala y, si hace falta, fía de nuevo el valor correcto.
+          </Text>
+          <Button
+            label="Anular deuda"
+            icon="close-circle-outline"
+            variant="ghost"
+            onPress={() => onCancelDebt(debt)}
+            fullWidth
+          />
+        </View>
+      ) : null}
     </Sheet>
   );
 };
@@ -191,5 +219,9 @@ const styles = StyleSheet.create({
   paymentBody: {
     flex: 1,
     gap: 2,
+  },
+  cancelSection: {
+    marginTop: theme.spacing.xl,
+    gap: theme.spacing.sm,
   },
 });

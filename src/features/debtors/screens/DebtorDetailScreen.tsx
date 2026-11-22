@@ -147,6 +147,39 @@ export const DebtorDetailScreen = () => {
     [businessId, debtorId, dialog, reloadAfterMutation, toast],
   );
 
+  /**
+   * Anular: se cierra la hoja de la deuda y la confirmación entra justo
+   * después, porque dos `Modal` a la vez dejan al de Android sin aparecer.
+   */
+  const askCancelDebt = useCallback(
+    (debt: Debt) => {
+      setSelectedDebt(null);
+      setTimeout(
+        () =>
+          dialog.confirm({
+            tone: 'danger',
+            title: `¿Anular la deuda de ${formatMoney(debt.amount)}?`,
+            message:
+              'Deja de sumar a lo que te debe y queda en el historial como anulada. No se puede deshacer.',
+            confirmLabel: 'Anular deuda',
+            cancelLabel: 'Volver',
+            onConfirm: async () => {
+              try {
+                await debtApi.cancel(debt.id, businessId);
+                toast.info('Deuda anulada');
+              } catch (caught) {
+                dialog.showError(toAppError(caught));
+              } finally {
+                await reloadAfterMutation();
+              }
+            },
+          }),
+        300,
+      );
+    },
+    [businessId, dialog, reloadAfterMutation, toast],
+  );
+
   const handleRegisterPayment = useCallback(
     async ({
       amount,
@@ -520,6 +553,7 @@ export const DebtorDetailScreen = () => {
             setSelectedDebt(null);
             setPaymentTarget(debt);
           }}
+          onCancelDebt={can('debt:cancel', businessId) ? askCancelDebt : undefined}
         />
       ) : null}
 
