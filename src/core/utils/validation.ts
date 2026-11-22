@@ -41,14 +41,61 @@ export const minLength =
       ? `${label} debe tener al menos ${length} caracteres`
       : undefined;
 
-/** Documento de identidad colombiano: solo dígitos, entre 6 y 12. */
+/**
+ * Número de documento, sin saber todavía el tipo: obligatorio y con forma de
+ * documento (letras y números; puntos, espacios y guiones se ignoran). La
+ * regla de cada tipo la aplica `documentNumberFor` al enviar, porque el tipo
+ * es otro campo del formulario.
+ */
 export const documentNumber: Validator = (value) => {
-  const digits = digitsOnly(value);
-  if (digits.length === 0) return 'El número de documento es obligatorio';
-  if (digits !== value.trim()) return 'El documento debe tener solo números';
-  if (digits.length < 6 || digits.length > 12) return 'El documento debe tener entre 6 y 12 dígitos';
+  const compact = value.replace(/[\s.-]/g, '');
+  if (compact.length === 0) return 'El número de documento es obligatorio';
+  if (!/^[a-zA-Z0-9]+$/.test(compact)) return 'El documento solo puede tener letras y números';
   return undefined;
 };
+
+/**
+ * Las mismas reglas por tipo que el backend (`IsDocumentNumber`), para que el
+ * error salga junto al campo y no como un "datos inválidos" genérico:
+ *
+ *  - cédula: 6 a 10 dígitos;
+ *  - NIT: 9 dígitos, o 10 con el de verificación;
+ *  - extranjería: 3 a 20 letras o números.
+ */
+export const documentNumberFor =
+  (documentType: string): Validator =>
+  (value) => {
+    const base = documentNumber(value);
+    if (base) return base;
+    if (documentType === 'CC') {
+      const digits = digitsOnly(value);
+      if (digits !== value.replace(/[\s.-]/g, '')) return 'La cédula solo lleva números';
+      return digits.length >= 6 && digits.length <= 10
+        ? undefined
+        : 'La cédula debe tener entre 6 y 10 dígitos';
+    }
+    if (documentType === 'NIT') {
+      const digits = digitsOnly(value);
+      if (digits !== value.replace(/[\s.-]/g, '')) return 'El NIT solo lleva números';
+      return digits.length === 9 || digits.length === 10
+        ? undefined
+        : 'El NIT debe tener 9 dígitos, o 10 con el dígito de verificación';
+    }
+    const compact = value.replace(/[\s.-]/g, '');
+    return compact.length >= 3 && compact.length <= 20
+      ? undefined
+      : 'El documento de extranjería debe tener entre 3 y 20 letras o números';
+  };
+
+/**
+ * Nombre o apellido: letras (con tildes y ñ), espacios, apóstrofo, punto y
+ * guion, como el backend. Rangos explícitos en vez de `\p{L}`, que Hermes
+ * no garantiza en todas las versiones.
+ */
+export const personName: Validator = (value) =>
+  value.trim() && !/^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\s'.-]*$/.test(value.trim())
+    ? 'Solo letras, espacios, apóstrofos, puntos y guiones'
+    : undefined;
 
 /** Celular colombiano: 10 dígitos que empiezan por 3. */
 export const phone: Validator = (value) => {
@@ -86,7 +133,10 @@ export const emailOrDocument: Validator = (value) => {
   if (trimmed.length === 0) return 'Ingresa tu correo, celular o documento';
   const looksLikeEmail = trimmed.includes('@');
   if (looksLikeEmail) return email(trimmed);
-  return /^\d{4,}$/.test(trimmed)
+  // Como lo normaliza el backend: "300 123 4567", "+57 300…" o "1.032.876.361"
+  // valen, y el documento de extranjería puede llevar letras.
+  const compact = trimmed.replace(/[\s.\-()+]/g, '');
+  return /^[a-zA-Z0-9]{3,20}$/.test(compact)
     ? undefined
     : 'Ingresa un correo válido, un celular o un número de documento';
 };

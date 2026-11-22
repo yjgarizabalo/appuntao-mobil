@@ -20,7 +20,7 @@ import { StyleSheet, View } from 'react-native';
 import { toAppError } from '@/core/errors/AppError';
 import { useForm } from '@/core/hooks/useForm';
 import { formatPhone } from '@/core/utils/format';
-import { minLength, required } from '@/core/utils/validation';
+import { minLength, personName, required } from '@/core/utils/validation';
 import { DOCUMENT_TYPE_LABEL, isDocumentType } from '@/domain/constants';
 import { authApi } from '@/features/auth/api/authApi';
 import { useSession } from '@/features/auth/session/SessionProvider';
@@ -53,8 +53,8 @@ export const EditProfileScreen = () => {
       lastName: user?.lastName ?? '',
     },
     rules: {
-      firstName: [required('El nombre'), minLength(2, 'El nombre')],
-      lastName: [required('El apellido'), minLength(2, 'El apellido')],
+      firstName: [required('El nombre'), minLength(2, 'El nombre'), personName],
+      lastName: [required('El apellido'), minLength(2, 'El apellido'), personName],
     },
     onSubmit: async (values) => {
       if (!user?.id) return;

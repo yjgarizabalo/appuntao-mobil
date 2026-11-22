@@ -70,6 +70,8 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
 - [**2026-11-19-invitaciones.md**](bitacora/2026-11-19-invitaciones.md) — invitar
   clientes a ver su cuenta (la única forma de vincularlos), invitaciones recibidas al
   entrar, reenviar y cancelar. Arregla "Tengo un código", que aceptaba con un código vacío.
+- [**2026-11-22-revision-auth-y-users.md**](bitacora/2026-11-22-revision-auth-y-users.md) —
+  las validaciones de documento, login y nombres quedan iguales a las del backend.
 
 ---
 
