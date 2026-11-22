@@ -96,14 +96,8 @@ export const DebtorDetailScreen = () => {
   const [paymentTarget, setPaymentTarget] = useState<Debt | 'all' | null>(null);
 
   const detail = useAsyncData<DetailData>(
-    async () => {
-      // Las dos peticiones son independientes: se lanzan en paralelo.
-      const [debtor, debts] = await Promise.all([
-        debtorApi.getById(debtorId, businessId),
-        debtApi.listByDebtor(debtorId, businessId),
-      ]);
-      return { debtor, debts };
-    },
+    // Una sola petición: la ficha trae todas sus deudas con sus pagos.
+    () => debtorApi.getDetail(debtorId, businessId),
     {
       enabled: debtorId.length > 0 && businessId.length > 0,
       deps: [debtorId, businessId],

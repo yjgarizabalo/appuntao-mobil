@@ -6,15 +6,14 @@
  */
 import { businessHeader, http } from '@/core/http/client';
 import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
-import { mapBusinessSummary, mapDebtor } from '@/domain/mappers';
-import type { BusinessSummary, Debtor, DebtorDraft } from '@/domain/models';
+import { mapBusinessSummary, mapDebt, mapDebtor } from '@/domain/mappers';
+import type { BusinessSummary, Debt, Debtor, DebtorDraft } from '@/domain/models';
 
 /**
- * Texto de búsqueda para el backend.
- *
- * El servidor busca sobre una columna `searchText` ya normalizada (minúsculas
- * y sin tildes), así que "jose" encuentra a "José". Se manda `undefined`
- * cuando está vacío para no ensuciar la URL con `search=`.
+ * Texto de búsqueda para el backend, que busca en nombre, celular y documento
+ * sin distinguir mayúsculas (y el celular y el documento también solo con
+ * dígitos). Se manda `undefined` cuando está vacío para no ensuciar la URL
+ * con `search=`.
  */
 const searchParam = (search?: string): string | undefined => {
   const trimmed = search?.trim();
@@ -29,8 +28,8 @@ export interface DebtorListQuery {
 }
 
 /**
- * Tope de `top` para `/debtors/summary`. El backend no lo valida, así que
- * queda aquí: ningún llamador debe poder pedir un ranking más grande que este.
+ * Tope de `top` para `/debtors/summary`. Es el mismo del backend, que responde
+ * 400 si se pasa; se recorta aquí para no llegar a ese error.
  */
 const MAX_SUMMARY_TOP = 50;
 
@@ -91,10 +90,31 @@ export const debtorApi = {
     return mapBusinessSummary(toItem(data), businessId);
   },
 
-  /** `GET /debtors/:id` */
+  /** `GET /debtors/:id`, solo la ficha (para editarla). */
   getById: async (debtorId: string, businessId: string): Promise<Debtor> => {
     const { data } = await http.get(`/debtors/${debtorId}`, businessHeader(businessId));
     return mapDebtor(toItem(data), businessId);
+  },
+
+  /**
+   * `GET /debtors/:id` — la ficha con su saldo y **todas** sus deudas con sus
+   * pagos, sin paginar.
+   *
+   * El detalle se arma solo con esto. Antes pedía además
+   * `/debtors/:id/debts`, que pagina de 10 en 10: con más de 10 deudas el
+   * saldo, los totales y el extracto salían incompletos.
+   */
+  getDetail: async (
+    debtorId: string,
+    businessId: string,
+  ): Promise<{ debtor: Debtor; debts: Debt[] }> => {
+    const { data } = await http.get(`/debtors/${debtorId}`, businessHeader(businessId));
+    const raw = toItem<{ debts?: unknown }>(data) ?? {};
+    const debts = Array.isArray(raw.debts) ? raw.debts : [];
+    return {
+      debtor: mapDebtor(raw, businessId),
+      debts: debts.map((item) => mapDebt(item, businessId)),
+    };
   },
 
   /** `POST /debtors` */
@@ -107,8 +127,13 @@ export const debtorApi = {
    * `PATCH /debtors/:id` — corrige los datos de un cliente.
    *
    * El backend acepta campos sueltos (el DTO es un `PartialType`), así que se
-   * manda solo lo que cambió. Exige rol `ADMIN` u `OWNER` en el negocio; el
-   * tendero que creó el negocio es `OWNER`, pero un `CASHIER` recibirá un 403.
+   * manda solo lo que cambió; si llega el tipo de documento sin el número (o
+   * al revés), valida la pareja como queda guardada. Exige rol `ADMIN` u
+   * `OWNER` en el negocio; el tendero que creó el negocio es `OWNER`, pero un
+   * `CASHIER` recibirá un 403.
+   *
+   * Si el celular o el documento ya son de otro cliente del negocio responde
+   * 409 `DEBTOR_DUPLICATE` con el campo en `errors`, igual que al crear.
    *
    * Ojo: el deudor **no** se puede editar si está inactivado; en ese caso el
    * backend responde 404, no un 409.
@@ -124,6 +149,18 @@ export const debtorApi = {
       businessHeader(businessId),
     );
     return mapDebtor(toItem(data), businessId);
+  },
+
+  /**
+   * `PATCH /debtors/:id/inactivate` — quita al cliente de la lista del negocio.
+   *
+   * Solo dueño y administrador, y solo si no debe nada (si no, 400). Sus
+   * deudas y pagos se conservan; si estaba vinculado, la cuenta deja de verlo
+   * y sus invitaciones pendientes se cancelan. **No se puede deshacer**: para
+   * volver a tenerlo hay que registrarlo de nuevo.
+   */
+  inactivate: async (debtorId: string, businessId: string): Promise<void> => {
+    await http.patch(`/debtors/${debtorId}/inactivate`, {}, businessHeader(businessId));
   },
 
   /**
