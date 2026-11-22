@@ -4,12 +4,13 @@
  * Es el estado vacío más importante del modo: quien cambia a cliente por
  * curiosidad cae aquí, y si solo viera "no hay nada" se iría pensando que la
  * función no sirve. Así que esta pantalla explica **por qué** está vacía y
- * da las dos salidas reales, que son las dos únicas formas en que el backend
- * crea el vínculo (`Debtor.userId`):
+ * cómo se llena.
  *
- *  1. que la tienda lo registre con el mismo documento o celular de su
- *     cuenta — el backend los cruza solo al registrarse;
- *  2. que la tienda le comparta un código de invitación.
+ * El vínculo (`Debtor.userId`) solo se crea aceptando una invitación de la
+ * tienda: el backend dejó de vincular solo por documento o celular, porque
+ * eso dejaba que cualquier negocio "reclamara" a una persona. La invitación
+ * va al celular o correo de la cuenta y aparece arriba de esta pantalla
+ * (`IncomingInvitationsCard`); el código es el respaldo.
  *
  * Y siempre deja volver al modo tendero: nadie debe quedar encerrado en un
  * modo que todavía no puede usar.
@@ -22,19 +23,19 @@ import { useAppMode } from '@/features/client/state/AppModeProvider';
 import { Button, Card, IconBubble, Text } from '@/ui';
 import { theme } from '@/theme';
 
-/** Las dos vías de vinculación, en el orden en que suelen ocurrir. */
+/** Cómo se vincula, en el orden en que ocurre. */
 const STEPS = [
   {
-    icon: 'card-outline',
-    title: 'Dale tus datos a la tienda',
+    icon: 'logo-whatsapp',
+    title: 'Pide que la tienda te invite',
     description:
-      'Pide que te registren con tu cédula o tu celular. Si coinciden con los de tu cuenta, el vínculo se crea solo.',
+      'Desde tu ficha de cliente, la tienda te envía una invitación al celular o al correo de tu cuenta.',
   },
   {
-    icon: 'ticket-outline',
-    title: 'O pide un código',
+    icon: 'notifications-outline',
+    title: 'Acéptala aquí',
     description:
-      'La tienda puede generarte un código de invitación. Escríbelo aquí y quedas vinculado al instante.',
+      'Te aparece al abrir la app. Si te pasaron un código, también puedes escribirlo.',
   },
 ] as const;
 
@@ -55,7 +56,7 @@ export const ClientNotLinked = () => {
       </Text>
       <Text variant="body" color="textMuted" align="center" style={styles.message}>
         En modo cliente ves lo que debes en las tiendas donde te fían. Para que aparezcan
-        aquí, la tienda tiene que vincularte a tu cuenta.
+        aquí, la tienda tiene que invitarte y tú aceptar.
       </Text>
 
       <Card padding="lg" style={styles.steps}>

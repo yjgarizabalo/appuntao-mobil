@@ -18,6 +18,7 @@ import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useForm } from '@/core/hooks/useForm';
 import {
   documentNumber as documentNumberRule,
+  documentNumberFor,
   minLength,
   phone as phoneRule,
   required,
@@ -80,6 +81,13 @@ export const EditDebtorScreen = () => {
     },
     onSubmit: async (values) => {
       if (!debtor) return;
+
+      // La regla del documento depende del tipo elegido.
+      const documentError = documentNumberFor(values.documentType)(values.documentNumber);
+      if (documentError) {
+        form.setFieldError('documentNumber', documentError);
+        return;
+      }
 
       const changes: Partial<DebtorDraft> = {};
       if (values.name.trim() !== debtor.name) changes.name = values.name.trim();

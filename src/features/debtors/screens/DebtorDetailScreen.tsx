@@ -38,6 +38,7 @@ import { debtApi } from '@/features/debts/api/debtApi';
 import { AddDebtSheet } from '@/features/debts/components/AddDebtSheet';
 import { DebtDetailSheet } from '@/features/debts/components/DebtDetailSheet';
 import { debtorApi } from '@/features/debtors/api/debtorApi';
+import { ClientAccessCard } from '@/features/debtors/components/ClientAccessCard';
 import { MovementRow } from '@/features/debtors/components/MovementRow';
 import { paymentApi } from '@/features/payments/api/paymentApi';
 import { RegisterPaymentSheet } from '@/features/payments/components/RegisterPaymentSheet';
@@ -441,6 +442,15 @@ export const DebtorDetailScreen = () => {
       {/* ── Extracto ────────────────────────────────────────────────────── */}
       <View style={styles.body}>
         <StaleNotice visible={detail.isStale} />
+
+        {/* Si el cliente ve su cuenta en la app, o invitarlo a verla. */}
+        <ClientAccessCard
+          debtor={debtor}
+          businessId={businessId}
+          canInvite={can('client:invite', businessId)}
+          canUnlink={can('client:unlink', businessId)}
+          onUnlinked={() => void detail.refresh()}
+        />
 
         <SectionHeader
           title="Movimientos"

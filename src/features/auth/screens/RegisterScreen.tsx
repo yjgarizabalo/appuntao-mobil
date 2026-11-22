@@ -35,6 +35,8 @@ import { useForm } from '@/core/hooks/useForm';
 import { routes } from '@/core/navigation/routes';
 import {
   documentNumber as documentNumberRule,
+  documentNumberFor,
+  personName,
   email as emailRule,
   matches,
   minLength,
@@ -90,8 +92,8 @@ export const RegisterScreen = () => {
       confirmPassword: '',
     },
     rules: {
-      firstName: [required('El nombre'), minLength(2, 'El nombre')],
-      lastName: [required('El apellido'), minLength(2, 'El apellido')],
+      firstName: [required('El nombre'), minLength(2, 'El nombre'), personName],
+      lastName: [required('El apellido'), minLength(2, 'El apellido'), personName],
       documentNumber: [documentNumberRule],
       email: [required('El correo'), emailRule],
       phone: [phoneRule],
@@ -120,6 +122,13 @@ export const RegisterScreen = () => {
 
       if (values.password !== values.confirmPassword) {
         form.setFieldError('confirmPassword', 'Las contraseñas no coinciden');
+        return;
+      }
+
+      // La regla del documento depende del tipo elegido.
+      const documentError = documentNumberFor(values.documentType)(values.documentNumber);
+      if (documentError) {
+        form.setFieldError('documentNumber', documentError);
         return;
       }
 

@@ -16,12 +16,14 @@ import { toAppError } from '@/core/errors/AppError';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { routes } from '@/core/navigation/routes';
 import { BUSINESS_ROLE_LABEL, type BusinessRole } from '@/domain/constants';
-import type { Member } from '@/domain/models';
+import { formatLongDate, formatPhone } from '@/core/utils/format';
+import type { Invitation, Member } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { invitationApi } from '@/features/businesses/api/invitationApi';
 import { memberApi } from '@/features/businesses/api/memberApi';
 import { MemberActionsSheet } from '@/features/businesses/components/MemberActionsSheet';
 import { MemberRow } from '@/features/businesses/components/MemberRow';
+import { shareInvitation } from '@/features/businesses/model/invitationFlow';
 import {
   useBusinesses,
   useRefreshBusinessesOnFocus,
@@ -154,6 +156,65 @@ export const TeamScreen = () => {
     if (target) confirmRemoval(target);
   }, [confirmRemoval]);
 
+  /**
+   * Tocar una invitación pendiente: reenviarla (renueva 7 días, mismo código,
+   * y vuelve a abrir WhatsApp si va a un celular) o cancelarla.
+   */
+  const handleInvitation = (invitation: Invitation) => {
+    if (!activeBusinessId) return;
+    const target = invitation.email ?? (invitation.phone ? formatPhone(invitation.phone) : '');
+    dialog.confirm({
+      tone: 'info',
+      title: target ? `Invitación a ${target}` : 'Invitación pendiente',
+      message: `Vale hasta el ${formatLongDate(invitation.expiresAt)}. Código ${invitation.code}.`,
+      confirmLabel: 'Reenviar',
+      cancelLabel: 'Cancelar invitación',
+      onConfirm: async () => {
+        setIsBusy(true);
+        try {
+          const share = await invitationApi.resend(activeBusinessId, invitation.id);
+          if (share.invitation.phone) {
+            if (!(await shareInvitation(share))) {
+              toast.info(`Comparte este código: ${share.invitation.code}`);
+            }
+          } else {
+            toast.success(share.emailSent ? 'Le reenviamos el correo' : 'Invitación renovada');
+          }
+          await invitations.refresh();
+        } catch (caught) {
+          dialog.showError(toAppError(caught));
+        } finally {
+          setIsBusy(false);
+        }
+      },
+      onCancel: () =>
+        // El diálogo se cierra antes; la confirmación entra justo después.
+        setTimeout(
+          () =>
+            dialog.confirm({
+              tone: 'danger',
+              title: '¿Cancelar la invitación?',
+              message: 'Ya no se podrá usar. Puedes invitar a esa persona de nuevo cuando quieras.',
+              confirmLabel: 'Cancelar invitación',
+              cancelLabel: 'Volver',
+              onConfirm: async () => {
+                setIsBusy(true);
+                try {
+                  await invitationApi.cancel(activeBusinessId, invitation.id);
+                  toast.info('Invitación cancelada');
+                } catch (caught) {
+                  dialog.showError(toAppError(caught));
+                } finally {
+                  await invitations.refresh();
+                  setIsBusy(false);
+                }
+              },
+            }),
+          300,
+        ),
+    });
+  };
+
   /** Una fila es accionable si puedo gestionar, no es el dueño y no soy yo. */
   const canManageMember = (member: Member) =>
     (canManage || canRemove) && member.role !== 'OWNER' && member.userId !== user?.id;
@@ -231,6 +292,7 @@ export const TeamScreen = () => {
                           : 'Invitación enviada'
                       }
                       trailing={<Badge label="Pendiente" tone="warning" />}
+                      onPress={() => handleInvitation(invitation)}
                     />
                   </View>
                 ))}

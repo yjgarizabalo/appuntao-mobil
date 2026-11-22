@@ -4,30 +4,28 @@
  * Es la cara opuesta de `debtorApi`. Allí el tendero consulta a *sus*
  * clientes; aquí el usuario consulta las fichas de deudor que **otros**
  * tenderos abrieron a su nombre. El vínculo lo guarda el backend en
- * `Debtor.userId` y se crea solo de dos maneras: al registrarse con el mismo
- * documento o celular que el tendero anotó, o al aceptar una invitación de
- * tipo `DEBTOR`.
+ * `Debtor.userId` y se crea de una sola manera: al aceptar una invitación de
+ * tipo `DEBTOR` de la tienda. (Antes también se creaba solo al registrarse con
+ * el mismo documento o celular; el backend lo quitó.)
  *
  * Se arma con dos endpoints que ya existen, sin tocar el backend:
  *
  *  1. `GET /users/me/dashboard` → `clientBusinesses`, la lista de tiendas
  *     donde le fían. No trae saldos, solo el vínculo.
- *  2. `GET /debtors/:debtorId/debts` (con `x-business-id`) → las deudas de esa
+ *  2. `GET /debtors/me/:debtorId/debts` → las deudas de esa
  *     ficha, con sus pagos embebidos. Una llamada por tienda.
  *
- * ⚠️ Deuda técnica conocida: el segundo endpoint solo valida que el negocio
- * exista y esté activo —no comprueba que quien pregunta sea el dueño de la
- * ficha ni miembro del negocio—, así que hoy funciona para el cliente por un
- * guard que falta, no por diseño. Esta capa **siempre** pide con el `debtorId`
- * que vino del dashboard del propio usuario, nunca con uno de otra procedencia,
- * para no apoyarse en ese hueco. Cuando el backend exponga endpoints propios
- * del cliente (`/me/...`) solo cambia este archivo.
+ * Para las deudas se usa `GET /debtors/me/:debtorId/debts`, el endpoint propio
+ * del cliente: solo responde si la ficha está vinculada a la cuenta, y no pide
+ * `x-business-id` ni ser del equipo. Antes se usaba el del tendero
+ * (`/debtors/:debtorId/debts`), que exige ser miembro del negocio y respondía
+ * 403 a un cliente; además paginaba de a 10 y el saldo quedaba incompleto.
  *
  * Tampoco hay un total consolidado en el servidor: se calcula aquí con
  * `summarizeDebts`, que es la misma función que usa el detalle del cliente en
  * modo tendero, así que las dos vistas no pueden discrepar.
  */
-import { businessHeader, http } from '@/core/http/client';
+import { http } from '@/core/http/client';
 import { toItem, toList } from '@/core/http/payload';
 import { createLogger } from '@/core/logger';
 import { mapClientAccount, mapDebt } from '@/domain/mappers';
@@ -77,17 +75,19 @@ export const clientApi = {
   },
 
   /**
-   * `GET /debtors/:debtorId/debts` — las deudas del usuario en **una** tienda,
-   * ya resumidas.
-   *
-   * Se pide con el `debtorId` que entregó el dashboard, nunca con uno armado
-   * en la pantalla: ver la nota de autorización del encabezado.
+   * `GET /debtors/me/:debtorId/debts` — todas las deudas del usuario en
+   * **una** tienda, con sus pagos, ya resumidas.
    */
+  /**
+   * `DELETE /debtors/me/:debtorId/link` — dejar de ver esta tienda. La tienda
+   * conserva la ficha y puede volver a invitarlo.
+   */
+  leave: async (debtorId: string): Promise<void> => {
+    await http.delete(`/debtors/me/${debtorId}/link`);
+  },
+
   getStanding: async (account: ClientAccount): Promise<ClientStanding> => {
-    const { data } = await http.get(
-      `/debtors/${account.debtorId}/debts`,
-      businessHeader(account.businessId),
-    );
+    const { data } = await http.get(`/debtors/me/${account.debtorId}/debts`);
 
     const debts = toList<unknown>(data).map((item) => mapDebt(item, account.businessId));
 

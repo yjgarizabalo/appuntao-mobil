@@ -77,8 +77,11 @@ export interface TeamInviteInput {
 }
 
 /**
- * Mensaje de invitación al equipo. Incluye el paso a paso para unirse con el
- * código dentro de la app, ya que el flujo es por código (no por deep link).
+ * Mensaje de invitación al equipo.
+ *
+ * La invitación va al número al que se envía este WhatsApp: si la persona
+ * entra (o se registra) con ese número, le aparece sola al abrir la app. El
+ * código queda de respaldo, y solo le sirve a ella.
  */
 export const buildTeamInvite = ({ businessName, roleLabel, code }: TeamInviteInput): string => {
   const at = businessName ? ` a *${businessName}*` : '';
@@ -86,10 +89,10 @@ export const buildTeamInvite = ({ businessName, roleLabel, code }: TeamInviteInp
   return (
     `¡Hola! 👋 Te invito a unirte${at} en *Appuntao* como *${roleLabel}*.\n\n` +
     'Para entrar:\n' +
-    '1️⃣ Instala Appuntao e ingresa con tu cuenta.\n' +
-    '2️⃣ Ve a *Perfil → Tengo un código*.\n' +
-    `3️⃣ Escribe este código: *${code}*\n\n` +
-    'El código vence en 7 días. ¡Te espero! 🙌'
+    '1️⃣ Instala Appuntao y entra, o regístrate, con *este mismo número*.\n' +
+    '2️⃣ La invitación te aparece al abrir la app. Tócala y acéptala.\n' +
+    `3️⃣ Si no te aparece, ve a *Perfil → Tengo un código* y escribe: *${code}*\n\n` +
+    'La invitación vence en 7 días. ¡Te espero! 🙌'
   );
 };
 

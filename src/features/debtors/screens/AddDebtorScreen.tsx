@@ -16,6 +16,7 @@ import { useForm } from '@/core/hooks/useForm';
 import { routes } from '@/core/navigation/routes';
 import {
   documentNumber as documentNumberRule,
+  documentNumberFor,
   minLength,
   phone as phoneRule,
   required,
@@ -62,6 +63,13 @@ export const AddDebtorScreen = () => {
           title: 'Sin negocio seleccionado',
           message: 'Selecciona o crea un negocio antes de registrar clientes.',
         });
+        return;
+      }
+
+      // La regla del documento depende del tipo elegido.
+      const documentError = documentNumberFor(values.documentType)(values.documentNumber);
+      if (documentError) {
+        form.setFieldError('documentNumber', documentError);
         return;
       }
 

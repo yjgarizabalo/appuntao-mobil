@@ -125,4 +125,12 @@ export const debtorApi = {
     );
     return mapDebtor(toItem(data), businessId);
   },
+
+  /**
+   * `PATCH /debtors/:id/unlink` — la cuenta que veía la ficha deja de verla.
+   * La ficha, sus deudas y sus pagos no cambian. Solo dueño y administrador.
+   */
+  unlink: async (debtorId: string, businessId: string): Promise<void> => {
+    await http.patch(`/debtors/${debtorId}/unlink`, {}, businessHeader(businessId));
+  },
 };
