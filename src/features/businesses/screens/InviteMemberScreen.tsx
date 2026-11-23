@@ -30,6 +30,7 @@ import {
   BUSINESS_ROLE_LABEL,
 } from '@/domain/constants';
 import { invitationApi } from '@/features/businesses/api/invitationApi';
+import { manageableRoles } from '@/domain/permissions';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import {
   AppBar,
@@ -48,7 +49,12 @@ import { theme } from '@/theme';
 type InviteMethod = 'email' | 'whatsapp';
 
 export const InviteMemberScreen = () => {
-  const { activeBusiness, activeBusinessId } = useBusinesses();
+  const { activeBusiness, activeBusinessId, activeRole } = useBusinesses();
+  // El administrador solo invita cajeros y solo lectura; los administradores
+  // los invita el dueño.
+  const roleOptions = ASSIGNABLE_BUSINESS_ROLE_OPTIONS.filter((option) =>
+    manageableRoles(activeRole).includes(option.value),
+  );
   const dialog = useDialog();
 
   const [method, setMethod] = useState<InviteMethod>('email');
@@ -244,7 +250,7 @@ export const InviteMemberScreen = () => {
       <OptionPicker
         label="Rol"
         value={form.values.role}
-        options={ASSIGNABLE_BUSINESS_ROLE_OPTIONS}
+        options={roleOptions}
         onChange={(value) => form.setValue('role', value)}
         sheetTitle="¿Qué podrá hacer?"
       />

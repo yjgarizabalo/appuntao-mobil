@@ -4,9 +4,13 @@
  * Es una lista Tier B, hermana de Clientes y Negocios: `AppBar` + `FlatList` de
  * `MemberRow` + `Fab`. Cualquier miembro puede ver el equipo (el backend deja
  * leer `GET /business-users` a todos los roles); solo el dueño o un
- * administrador ven el `Fab` de invitar y pueden gestionar a otros. El dueño no
- * se puede modificar ni quitar, y uno no se gestiona a sí mismo: en esos casos
- * la fila no es accionable.
+ * administrador ven el `Fab` de invitar y pueden gestionar a otros: el dueño a
+ * todos, el administrador solo a cajeros y solo lectura (`manageableRoles`).
+ * El dueño no se puede modificar ni quitar, y uno no se gestiona a sí mismo:
+ * en esos casos la fila no es accionable.
+ *
+ * Quien no es el dueño puede salirse del negocio desde aquí. El dueño no:
+ * primero lo transfiere.
  */
 import { router } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -18,6 +22,7 @@ import { routes } from '@/core/navigation/routes';
 import { BUSINESS_ROLE_LABEL, type BusinessRole } from '@/domain/constants';
 import { formatLongDate, formatPhone } from '@/core/utils/format';
 import type { Invitation, Member } from '@/domain/models';
+import { canManageRole, manageableRoles } from '@/domain/permissions';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { invitationApi } from '@/features/businesses/api/invitationApi';
 import { memberApi } from '@/features/businesses/api/memberApi';
@@ -31,6 +36,7 @@ import {
 import {
   AppBar,
   Badge,
+  Button,
   Dialog,
   EmptyState,
   ErrorState,
@@ -47,7 +53,13 @@ import { theme } from '@/theme';
 
 export const TeamScreen = () => {
   const { user } = useSession();
-  const { activeBusiness, activeBusinessId, can, refresh: refreshBusinesses } = useBusinesses();
+  const {
+    activeBusiness,
+    activeBusinessId,
+    activeRole,
+    can,
+    refresh: refreshBusinesses,
+  } = useBusinesses();
   useRefreshBusinessesOnFocus();
   const dialog = useDialog();
   const toast = useToast();
@@ -157,6 +169,35 @@ export const TeamScreen = () => {
   }, [confirmRemoval]);
 
   /**
+   * Salirse del negocio. Al volver, la lista de negocios ya no lo trae y la
+   * app pasa al siguiente que tenga (o a ninguno).
+   */
+  const askLeave = () => {
+    if (!activeBusinessId) return;
+    const businessName = activeBusiness?.name ?? 'este negocio';
+    dialog.confirm({
+      tone: 'danger',
+      title: `¿Salir de ${businessName}?`,
+      message: 'Dejas de ver sus clientes y sus cuentas. Para volver, el negocio te tiene que invitar otra vez.',
+      confirmLabel: 'Salir',
+      cancelLabel: 'Quedarme',
+      onConfirm: async () => {
+        setIsBusy(true);
+        try {
+          await memberApi.leave(activeBusinessId);
+          toast.info(`Saliste de ${businessName}`);
+          await refreshBusinesses();
+          router.back();
+        } catch (caught) {
+          dialog.showError(toAppError(caught));
+        } finally {
+          setIsBusy(false);
+        }
+      },
+    });
+  };
+
+  /**
    * Tocar una invitación pendiente: reenviarla (renueva 7 días, mismo código,
    * y vuelve a abrir WhatsApp si va a un celular) o cancelarla.
    */
@@ -215,9 +256,14 @@ export const TeamScreen = () => {
     });
   };
 
-  /** Una fila es accionable si puedo gestionar, no es el dueño y no soy yo. */
+  /** Una fila es accionable si manejo su rol, no es el dueño y no soy yo. */
   const canManageMember = (member: Member) =>
-    (canManage || canRemove) && member.role !== 'OWNER' && member.userId !== user?.id;
+    (canManage || canRemove) &&
+    member.role !== 'OWNER' &&
+    member.userId !== user?.id &&
+    canManageRole(activeRole, member.role);
+  // El dueño no se sale: primero transfiere el negocio.
+  const canLeave = activeRole !== null && activeRole !== 'OWNER';
 
   /* ── Sin negocio todavía ───────────────────────────────────────────────── */
 
@@ -278,26 +324,44 @@ export const TeamScreen = () => {
             />
           )}
           ListFooterComponent={
-            pendingInvites.length > 0 ? (
-              <View style={styles.pending}>
-                <SectionHeader title="Invitaciones pendientes" meta={`${pendingInvites.length}`} />
-                {pendingInvites.map((invitation) => (
-                  <View key={invitation.id} style={styles.pendingRow}>
-                    <ListRow
-                      leading={<IconBubble icon="mail-outline" tone="warning" />}
-                      title={invitation.email ?? invitation.phone ?? invitation.code}
-                      subtitle={
-                        invitation.role
-                          ? `Invitado como ${BUSINESS_ROLE_LABEL[invitation.role]}`
-                          : 'Invitación enviada'
-                      }
-                      trailing={<Badge label="Pendiente" tone="warning" />}
-                      onPress={() => handleInvitation(invitation)}
-                    />
-                  </View>
-                ))}
-              </View>
-            ) : null
+            <>
+              {pendingInvites.length > 0 ? (
+                <View style={styles.pending}>
+                  <SectionHeader title="Invitaciones pendientes" meta={`${pendingInvites.length}`} />
+                  {pendingInvites.map((invitation) => (
+                    <View key={invitation.id} style={styles.pendingRow}>
+                      <ListRow
+                        leading={<IconBubble icon="mail-outline" tone="warning" />}
+                        title={invitation.email ?? invitation.phone ?? invitation.code}
+                        subtitle={
+                          invitation.role
+                            ? `Invitado como ${BUSINESS_ROLE_LABEL[invitation.role]}`
+                            : 'Invitación enviada'
+                        }
+                        trailing={<Badge label="Pendiente" tone="warning" />}
+                        // Una invitación de administrador solo la maneja el dueño.
+                        onPress={
+                          !invitation.role || canManageRole(activeRole, invitation.role)
+                            ? () => handleInvitation(invitation)
+                            : undefined
+                        }
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {canLeave ? (
+                <Button
+                  label="Salir del negocio"
+                  icon="exit-outline"
+                  variant="ghost"
+                  onPress={askLeave}
+                  disabled={isBusy}
+                  fullWidth
+                  style={styles.leave}
+                />
+              ) : null}
+            </>
           }
           ListEmptyComponent={
             <EmptyState
@@ -322,6 +386,7 @@ export const TeamScreen = () => {
         onClose={() => setIsSheetOpen(false)}
         onClosed={handleSheetClosed}
         canManageRole={canManage}
+        roleOptions={manageableRoles(activeRole)}
         canRemove={canRemove}
         onChangeRole={handleChangeRole}
         onRemove={handleRemove}
@@ -351,5 +416,8 @@ const styles = StyleSheet.create({
   },
   pendingRow: {
     marginBottom: theme.spacing.sm,
+  },
+  leave: {
+    marginTop: theme.spacing.xl,
   },
 });
