@@ -17,6 +17,13 @@
  * se carga el `deviceId` de la instalación, que el login necesita sí o sí y
  * el refresh usa para probar que renueva desde el mismo aparato. Ese valor
  * **no** se borra al cerrar sesión: identifica el teléfono, no a la persona.
+ *
+ * Y un quinto: el **ingreso rápido** (`model/rememberedLogin.ts`). `login`
+ * guarda u olvida las credenciales según la casilla "Recordar mis datos", y lo
+ * hace *antes* de marcar la sesión como iniciada: en cuanto cambia el estado,
+ * el layout de `(auth)` saca al usuario del login. Cerrar sesión no las borra
+ * —son para volver a entrar—; desactivar o eliminar la cuenta, sí (lo hacen
+ * esas pantallas en cuanto el backend confirma).
  */
 import {
   type ReactNode,
@@ -41,6 +48,7 @@ import {
 import { createLogger } from '@/core/logger';
 import { clearCache } from '@/core/storage/cache';
 import { StorageKeys, getJson, removeItems, setJson } from '@/core/storage/storage';
+import { getFirstName } from '@/core/utils/format';
 import { mapUser } from '@/domain/mappers';
 import type { User } from '@/domain/models';
 import {
@@ -49,22 +57,47 @@ import {
   type RegisterPayload,
   authApi,
 } from '@/features/auth/api/authApi';
+import {
+  cancelAutoPrompt,
+  forgetRememberedLoginOf,
+  rememberLogin,
+} from '@/features/auth/model/rememberedLogin';
 
 const log = createLogger('session');
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
+export interface LoginOptions {
+  /**
+   * Qué hacer con el ingreso rápido al entrar:
+   *  - `true`: recordar estas credenciales (reemplaza las de otra cuenta);
+   *  - `false`: olvidar las recordadas, si eran de esta misma cuenta;
+   *  - sin definir: no tocar nada. Es el caso del propio ingreso rápido.
+   */
+  remember?: boolean;
+}
+
+export interface LoginOutcome {
+  /** Con `remember: true`, si las credenciales quedaron guardadas. */
+  remembered: boolean;
+}
+
 interface SessionContextValue {
   status: SessionStatus;
   user: User | null;
   isAuthenticated: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials, options?: LoginOptions) => Promise<LoginOutcome>;
   register: (payload: RegisterPayload) => Promise<User>;
-  /** Cierra sesión avisando al backend. Con `allDevices` cierra todas. */
+  /**
+   * Cierra sesión avisando al backend. Con `allDevices` cierra todas. No borra
+   * el ingreso rápido: es justo para volver a entrar.
+   */
   logout: (options?: LogoutOptions) => Promise<void>;
   /**
    * Cierra la sesión **solo en local**, sin llamar al backend. Para cuando el
-   * servidor ya la invalidó por su cuenta: hoy, al cambiar la contraseña.
+   * servidor ya la invalidó por su cuenta: al cambiar la contraseña y al
+   * desactivar o eliminar la cuenta. No toca el ingreso rápido: esas
+   * pantallas lo actualizan o lo borran en cuanto el backend responde.
    */
   endSession: () => Promise<void>;
   /** Actualiza el usuario en memoria y en disco (tras editar el perfil). */
@@ -94,6 +127,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       if (cancelled) return;
 
       if (tokens?.accessToken && storedUser) {
+        // Abrió con sesión: si más adelante llega al login es porque salió,
+        // y ahí no se le lanza el aviso de huella por su cuenta.
+        cancelAutoPrompt();
         setUser(storedUser);
         setStatus('authenticated');
         log.info('Sesión restaurada');
@@ -123,6 +159,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   /* ── Cierre de sesión forzado por el interceptor HTTP ──────────────────── */
 
+  // El ingreso rápido se conserva: si la contraseña sigue siendo la misma, es
+  // la forma más corta de volver a entrar.
   useEffect(
     () =>
       onSessionExpired(() => {
@@ -150,25 +188,48 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    const session = await authApi.login(credentials);
+  const login = useCallback(
+    async (credentials: LoginCredentials, options: LoginOptions = {}): Promise<LoginOutcome> => {
+      const session = await authApi.login(credentials);
 
-    if (!session.accessToken) {
-      throw new AppError('UNKNOWN', {
-        message: 'El servidor no devolvió un token de acceso.',
+      if (!session.accessToken) {
+        throw new AppError('UNKNOWN', {
+          message: 'El servidor no devolvió un token de acceso.',
+        });
+      }
+
+      await setTokens({
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        accessTokenExpiresAt: session.accessTokenExpiresAt,
       });
-    }
+      await setJson(StorageKeys.user, session.user);
 
-    await setTokens({
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken,
-      accessTokenExpiresAt: session.accessTokenExpiresAt,
-    });
-    await setJson(StorageKeys.user, session.user);
+      // Solo después de que el backend aceptó la contraseña: nunca se
+      // recuerda una que no se comprobó.
+      let remembered = false;
+      if (options.remember === true) {
+        remembered = await rememberLogin(
+          {
+            userId: session.user.id,
+            identifier: credentials.identifier,
+            // Sin `displayName`: su último recurso es el correo, y el saludo
+            // de una cuenta recordada no debe exponerlo entero.
+            firstName: getFirstName(session.user.firstName ?? session.user.name),
+          },
+          credentials.password,
+        );
+      } else if (options.remember === false) {
+        await forgetRememberedLoginOf(session.user.id);
+      }
+      cancelAutoPrompt();
 
-    setUser(session.user);
-    setStatus('authenticated');
-  }, []);
+      setUser(session.user);
+      setStatus('authenticated');
+      return { remembered };
+    },
+    [],
+  );
 
   const register = useCallback(
     (payload: RegisterPayload) => authApi.register(payload),

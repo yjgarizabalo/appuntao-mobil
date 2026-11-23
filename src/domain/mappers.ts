@@ -152,6 +152,7 @@ export const mapBusiness = (raw: unknown): Business => {
     currency: data.currency === undefined ? undefined : asString(data.currency),
     ownerId: data.ownerId === undefined ? undefined : asString(data.ownerId),
     members,
+    createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
   };
 };
 

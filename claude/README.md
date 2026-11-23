@@ -72,6 +72,10 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
   entrar, reenviar y cancelar. Arregla "Tengo un código", que aceptaba con un código vacío.
 - [**2026-11-22-revision-auth-y-users.md**](bitacora/2026-11-22-revision-auth-y-users.md) —
   las validaciones de documento, login y nombres quedan iguales a las del backend.
+- [**2026-11-22-ingreso-rapido-y-negocio-principal.md**](bitacora/2026-11-22-ingreso-rapido-y-negocio-principal.md) —
+  negocio principal (la app ya no abre en el último creado) y recordar los datos para entrar
+  con la huella o el bloqueo del celular. Agrega `expo-local-authentication` y
+  `expo-secure-store`: hace falta un build nuevo.
 
 ---
 

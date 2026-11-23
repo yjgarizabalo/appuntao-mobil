@@ -155,6 +155,22 @@ export const getFirstName = (name: string | undefined | null): string => {
   return name.trim().split(/\s+/)[0] ?? '';
 };
 
+/**
+ * Muestra un correo, celular o documento sin exponerlo entero, para saludar a
+ * una cuenta recordada en un teléfono que otros pueden mirar:
+ * `ana.perez@gmail.com` → `an•••@gmail.com`, `1020304050` → `•••• 4050`.
+ */
+export const maskIdentifier = (value: string): string => {
+  const trimmed = value.trim();
+  const at = trimmed.indexOf('@');
+  if (at > 0) {
+    const local = trimmed.slice(0, at);
+    const visible = local.slice(0, Math.min(2, Math.max(1, local.length - 1)));
+    return `${visible}•••${trimmed.slice(at)}`;
+  }
+  return trimmed.length > 4 ? `•••• ${trimmed.slice(-4)}` : trimmed;
+};
+
 /** Recorta con puntos suspensivos sin cortar a mitad de palabra. */
 export const truncate = (value: string, maxLength: number): string => {
   if (value.length <= maxLength) return value;

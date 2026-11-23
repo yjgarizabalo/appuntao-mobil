@@ -14,7 +14,9 @@
  *     sesión para arrepentirse (ver `LoginScreen`).
  *
  * Por eso, al terminar, no se llama al logout: el servidor ya invalidó la
- * sesión y solo queda limpiar el dispositivo (`endSession`).
+ * sesión y solo queda limpiar el dispositivo (`endSession`). Antes, en cuanto
+ * el backend confirma, se olvida el ingreso rápido de esta cuenta: no debe
+ * quedar su contraseña guardada en el teléfono.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -28,6 +30,7 @@ import { routes } from '@/core/navigation/routes';
 import { formatLongDate, formatMoney, pluralize } from '@/core/utils/format';
 import type { OwnedBusinessSummary } from '@/domain/models';
 import { accountApi } from '@/features/account/api/accountApi';
+import { forgetRememberedLoginOf } from '@/features/auth/model/rememberedLogin';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { exportApi } from '@/features/businesses/api/exportApi';
 import {
@@ -47,7 +50,7 @@ import {
 import { theme } from '@/theme';
 
 export const DeleteAccountScreen = () => {
-  const { endSession } = useSession();
+  const { user, endSession } = useSession();
   const dialog = useDialog();
   const preview = useAsyncData(accountApi.deletionPreview);
 
@@ -95,6 +98,7 @@ export const DeleteAccountScreen = () => {
         password,
         acknowledgeBusinessClosure: owned.length ? true : undefined,
       });
+      if (user?.id) await forgetRememberedLoginOf(user.id);
       const when = formatLongDate(result.deletionScheduledAt);
       dialog.show({
         tone: 'info',

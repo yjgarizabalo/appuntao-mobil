@@ -8,6 +8,15 @@
  * El identificador acepta correo **o** número de documento, como en el v1: el
  * tendero suele recordar su cédula antes que su correo.
  *
+ * **Ingreso rápido.** Si la persona marcó "Recordar mis datos" la última vez,
+ * la tarjeta muestra `QuickLoginPanel` en vez del formulario: entra con la
+ * huella, el rostro o el bloqueo del celular (`model/rememberedLogin.ts`). Si
+ * la app abrió sin sesión, el aviso del sistema se lanza solo, una vez. El
+ * formulario queda a un toque, y la casilla para recordar los datos solo
+ * aparece si el teléfono tiene con qué protegerlos. Mientras se lee el
+ * teléfono la tarjeta espera vacía: mostrar el formulario y cambiarlo un
+ * instante después por el panel se ve como un salto.
+ *
  * Esta pantalla no usa `<Screen keyboardAware>` porque el héroe necesita ir
  * detrás de la hoja del formulario; por eso repite un `KeyboardAvoidingView`
  * propio, con la misma librería (`react-native-keyboard-controller`) y el
@@ -16,19 +25,35 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setStatusBarStyle } from 'expo-status-bar';
 
+import { deviceAuthLabel } from '@/core/device/deviceAuth';
 import { AppError, toAppError } from '@/core/errors/AppError';
 import { routes } from '@/core/navigation/routes';
 import { useForm } from '@/core/hooks/useForm';
 import { emailOrDocument, required } from '@/core/utils/validation';
-import { useSession } from '@/features/auth/session/SessionProvider';
+import type { LoginCredentials } from '@/features/auth/api/authApi';
+import {
+  QuickLoginPanel,
+  deviceAuthIcon,
+} from '@/features/auth/components/QuickLoginPanel';
+import {
+  takeAutoPrompt,
+  unlockRememberedLogin,
+} from '@/features/auth/model/rememberedLogin';
+import { useRememberedLogin } from '@/features/auth/model/useRememberedLogin';
+import {
+  type LoginOptions,
+  type LoginOutcome,
+  useSession,
+} from '@/features/auth/session/SessionProvider';
 import {
   Button,
+  CheckboxField,
   Dialog,
   PressableScale,
   Text,
@@ -43,21 +68,20 @@ export const LoginScreen = () => {
   const { login } = useSession();
   const dialog = useDialog();
   const toast = useToast();
-  const [isReactivating, setIsReactivating] = useState(false);
+  const remembered = useRememberedLogin();
 
-  /** Repite el login pidiendo reactivar la cuenta. */
-  const reactivate = async (credentials: { identifier: string; password: string }) => {
-    setIsReactivating(true);
-    try {
-      await login({ ...credentials, reactivate: true });
-      toast.success('¡Qué bueno tenerte de vuelta!');
-      router.replace(routes.tabs.home);
-    } catch (caught) {
-      dialog.showError(toAppError(caught));
-    } finally {
-      setIsReactivating(false);
-    }
-  };
+  const [isReactivating, setIsReactivating] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  /** Eligió el formulario aunque haya una cuenta recordada. */
+  const [wantsForm, setWantsForm] = useState(false);
+  /** Casilla "Recordar mis datos". Desmarcada por defecto: es opcional. */
+  const [remember, setRemember] = useState(false);
+
+  const authKind =
+    remembered.support.status === 'available' ? remembered.support.kind : null;
+  const authLabel = authKind ? deviceAuthLabel(authKind) : '';
+  const quickAccount = authKind ? remembered.account : null;
+  const showQuickLogin = Boolean(quickAccount) && !wantsForm;
 
   const form = useForm({
     initialValues: { identifier: '', password: '' },
@@ -66,82 +90,195 @@ export const LoginScreen = () => {
       password: [required('La contraseña')],
     },
     onSubmit: async (values) => {
-      const credentials = {
-        identifier: values.identifier.trim(),
-        password: values.password,
-      };
+      await signIn(
+        { identifier: values.identifier.trim(), password: values.password },
+        // Sin manera de proteger los datos no hay casilla, y no se toca nada.
+        { remember: authKind ? remember : undefined },
+      );
+    },
+  });
 
-      try {
-        await login(credentials);
-        router.replace(routes.tabs.home);
-      } catch (caught) {
-        const error = toAppError(caught);
+  /* ── Ingreso ──────────────────────────────────────────────────────────── */
 
-        /**
-         * La contraseña era correcta pero la cuenta no está activa. El backend
-         * solo lo dice después de comprobar la contraseña, así que aquí ya se
-         * sabe que es su dueño:
-         *  - la desactivó él o pidió eliminarla → se ofrece reactivarla, que es
-         *    repetir el login con `reactivate: true` (y cancela la eliminación);
-         *  - la desactivó un administrador → solo soporte puede ayudar.
-         */
-        if (error.code === 'FORBIDDEN' && error.reason) {
-          if (
-            error.reason === 'ACCOUNT_DEACTIVATED' ||
-            error.reason === 'ACCOUNT_DELETION_PENDING'
-          ) {
-            const pendingDeletion = error.reason === 'ACCOUNT_DELETION_PENDING';
-            dialog.confirm({
-              tone: 'warning',
-              title: pendingDeletion ? 'Tu cuenta se va a eliminar' : 'Tu cuenta está desactivada',
-              message: pendingDeletion
-                ? `${error.message} Si la reactivas, se cancela la eliminación y todo sigue como estaba.`
-                : 'La desactivaste tú. Si la reactivas, todo vuelve a estar como lo dejaste.',
-              confirmLabel: pendingDeletion ? 'Conservar mi cuenta' : 'Reactivar mi cuenta',
-              cancelLabel: 'Ahora no',
-              onConfirm: () => {
-                void reactivate(credentials);
-              },
-            });
-            return;
-          }
+  /** Muestra el formulario, opcionalmente con el identificador ya escrito. */
+  const openForm = (identifier = '', keepRemembering = false) => {
+    form.reset({ identifier, password: '' });
+    setRemember(keepRemembering);
+    setWantsForm(true);
+  };
 
-          if (error.reason === 'ACCOUNT_DISABLED') {
-            dialog.showError(
-              new AppError('FORBIDDEN', { title: 'Cuenta desactivada', message: error.message }),
-            );
-            return;
-          }
-        }
+  /** Avisa cómo quedó la casilla de recordar, si se marcó. */
+  const announceRemember = (options: LoginOptions, outcome: LoginOutcome) => {
+    if (options.remember !== true) return;
+    if (outcome.remembered) {
+      toast.success(`Listo: la próxima vez entras con ${authLabel}.`);
+    } else {
+      toast.error('No pudimos guardar tus datos en este celular. Entrarás con tu contraseña.');
+    }
+  };
 
-        /**
-         * Un 401 del login no es una sesión vencida, así que el título por
-         * defecto de `UNAUTHORIZED` ("Sesión no válida") despista: se cambia.
-         *
-         * El **mensaje**, en cambio, lo manda el backend cuando lo da: ya no
-         * todos los 401 son "contraseña mala" —también responde así cuando el
-         * dato escrito pertenece a dos cuentas, y ahí explica qué hacer—. Solo
-         * si calla se usa el texto propio.
-         *
-         * El 429 (demasiados intentos) trae su propio mensaje y **no** se
-         * reintenta solo: el usuario decide cuándo volver a probar.
-         */
-        if (error.code === 'UNAUTHORIZED') {
-          dialog.showError(
-            new AppError('UNAUTHORIZED', {
-              title: 'No pudimos entrar',
-              message:
-                error.detail ??
-                'El correo, celular o documento, o la contraseña, no coinciden. Revísalos e intenta de nuevo.',
-            }),
-          );
+  /** Repite el login pidiendo reactivar la cuenta. */
+  const reactivate = async (credentials: LoginCredentials, options: LoginOptions) => {
+    setIsReactivating(true);
+    try {
+      const outcome = await login({ ...credentials, reactivate: true }, options);
+      if (options.remember === true && !outcome.remembered) {
+        announceRemember(options, outcome);
+      } else {
+        toast.success('¡Qué bueno tenerte de vuelta!');
+      }
+      router.replace(routes.tabs.home);
+    } catch (caught) {
+      dialog.showError(toAppError(caught));
+    } finally {
+      setIsReactivating(false);
+    }
+  };
+
+  /**
+   * Inicia sesión y resuelve sus errores. Lo usan el formulario y el ingreso
+   * rápido (`fromQuickLogin`), que comparten todo salvo qué hacer con un 401.
+   */
+  const signIn = async (
+    credentials: LoginCredentials,
+    options: LoginOptions,
+    fromQuickLogin = false,
+  ) => {
+    try {
+      const outcome = await login(credentials, options);
+      announceRemember(options, outcome);
+      router.replace(routes.tabs.home);
+    } catch (caught) {
+      const error = toAppError(caught);
+
+      /**
+       * La contraseña era correcta pero la cuenta no está activa. El backend
+       * solo lo dice después de comprobar la contraseña, así que aquí ya se
+       * sabe que es su dueño:
+       *  - la desactivó él o pidió eliminarla → se ofrece reactivarla, que es
+       *    repetir el login con `reactivate: true` (y cancela la eliminación);
+       *  - la desactivó un administrador → solo soporte puede ayudar.
+       */
+      if (error.code === 'FORBIDDEN' && error.reason) {
+        if (
+          error.reason === 'ACCOUNT_DEACTIVATED' ||
+          error.reason === 'ACCOUNT_DELETION_PENDING'
+        ) {
+          const pendingDeletion = error.reason === 'ACCOUNT_DELETION_PENDING';
+          dialog.confirm({
+            tone: 'warning',
+            title: pendingDeletion ? 'Tu cuenta se va a eliminar' : 'Tu cuenta está desactivada',
+            message: pendingDeletion
+              ? `${error.message} Si la reactivas, se cancela la eliminación y todo sigue como estaba.`
+              : 'La desactivaste tú. Si la reactivas, todo vuelve a estar como lo dejaste.',
+            confirmLabel: pendingDeletion ? 'Conservar mi cuenta' : 'Reactivar mi cuenta',
+            cancelLabel: 'Ahora no',
+            onConfirm: () => {
+              void reactivate(credentials, options);
+            },
+          });
           return;
         }
 
-        dialog.showError(error);
+        if (error.reason === 'ACCOUNT_DISABLED') {
+          dialog.showError(
+            new AppError('FORBIDDEN', { title: 'Cuenta desactivada', message: error.message }),
+          );
+          return;
+        }
       }
-    },
+
+      /**
+       * Un 401 del ingreso rápido significa que la contraseña guardada ya no
+       * sirve (lo normal: la cambió en otro teléfono). Se borra y se pide la
+       * actual, con la casilla marcada para que vuelva a quedar recordada.
+       */
+      if (error.code === 'UNAUTHORIZED' && fromQuickLogin) {
+        await remembered.forget();
+        openForm(credentials.identifier, true);
+        dialog.showError(
+          new AppError('UNAUTHORIZED', {
+            title: 'Escribe tu contraseña',
+            message:
+              'La contraseña guardada en este celular ya no funciona; puede que la hayas cambiado. Entra con la actual y volveremos a recordarla.',
+          }),
+        );
+        return;
+      }
+
+      /**
+       * Un 401 del login no es una sesión vencida, así que el título por
+       * defecto de `UNAUTHORIZED` ("Sesión no válida") despista: se cambia.
+       *
+       * El **mensaje**, en cambio, lo manda el backend cuando lo da: ya no
+       * todos los 401 son "contraseña mala" —también responde así cuando el
+       * dato escrito pertenece a dos cuentas, y ahí explica qué hacer—. Solo
+       * si calla se usa el texto propio.
+       *
+       * El 429 (demasiados intentos) trae su propio mensaje y **no** se
+       * reintenta solo: el usuario decide cuándo volver a probar.
+       */
+      if (error.code === 'UNAUTHORIZED') {
+        dialog.showError(
+          new AppError('UNAUTHORIZED', {
+            title: 'No pudimos entrar',
+            message:
+              error.detail ??
+              'El correo, celular o documento, o la contraseña, no coinciden. Revísalos e intenta de nuevo.',
+          }),
+        );
+        return;
+      }
+
+      dialog.showError(error);
+    }
+  };
+
+  /** Pide la huella (o el bloqueo del celular) y entra con lo recordado. */
+  const handleUnlock = async () => {
+    if (!quickAccount || !authKind || isUnlocking) return;
+    setIsUnlocking(true);
+    try {
+      const result = await unlockRememberedLogin(quickAccount, authKind);
+
+      if (result.status === 'unlocked') {
+        await signIn(result.credentials, {}, true);
+        return;
+      }
+
+      if (result.status === 'error') {
+        if (result.forgotten) {
+          await remembered.reload();
+          openForm(quickAccount.identifier);
+        }
+        dialog.show({
+          tone: 'warning',
+          title: result.title,
+          message: result.message,
+          confirmLabel: 'Entendido',
+        });
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  /**
+   * Aviso automático: al abrir la app sin sesión y con una cuenta recordada,
+   * se pide la huella sin esperar al toque. Una sola vez por arranque
+   * (`takeAutoPrompt`), y solo con la app en primer plano: iOS cancela el
+   * aviso si se pide mientras la app todavía está entrando.
+   */
+  const handleUnlockRef = useRef(handleUnlock);
+  useEffect(() => {
+    handleUnlockRef.current = handleUnlock;
   });
+  const canAutoPrompt = remembered.isReady && Boolean(quickAccount);
+  useEffect(() => {
+    if (!canAutoPrompt || AppState.currentState !== 'active') return;
+    if (!takeAutoPrompt()) return;
+    void handleUnlockRef.current();
+  }, [canAutoPrompt]);
 
   // Esta pantalla no usa `Screen` (arma su propio héroe a pantalla completa),
   // así que fija el estilo por su cuenta con el mismo mecanismo: al recibir el
@@ -150,6 +287,110 @@ export const LoginScreen = () => {
     useCallback(() => {
       setStatusBarStyle('light');
     }, []),
+  );
+
+  /* ── Vista ────────────────────────────────────────────────────────────── */
+
+  const renderForm = () => (
+    <>
+      <Text variant="title2">Hola de nuevo</Text>
+      <Text variant="body" color="textMuted" style={styles.subtitle}>
+        Ingresa para ver tus clientes y sus saldos.
+      </Text>
+
+      <TextField
+        label="Correo, celular o documento"
+        placeholder="tu@correo.com o 1020304050"
+        icon="person-outline"
+        value={form.values.identifier}
+        onChangeText={form.handleChange('identifier')}
+        onBlur={form.handleBlur('identifier')}
+        error={form.visibleError('identifier')}
+        autoCapitalize="none"
+        autoComplete="username"
+        keyboardType="email-address"
+        returnKeyType="next"
+        textContentType="username"
+      />
+
+      <TextField
+        label="Contraseña"
+        placeholder="Tu contraseña"
+        icon="lock-closed-outline"
+        value={form.values.password}
+        onChangeText={form.handleChange('password')}
+        onBlur={form.handleBlur('password')}
+        error={form.visibleError('password')}
+        secureTextEntry
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="go"
+        onSubmitEditing={form.submit}
+      />
+
+      <PressableScale
+        onPress={() => toast.info('La recuperación de contraseña estará disponible pronto.')}
+        haptic="select"
+        style={styles.forgot}
+      >
+        <Text variant="captionStrong" color="brandStrong">
+          ¿Olvidaste tu contraseña?
+        </Text>
+      </PressableScale>
+
+      {authKind ? (
+        <CheckboxField
+          checked={remember}
+          onChange={setRemember}
+          label="Recordar mis datos en este celular"
+          style={styles.remember}
+        >
+          <Text variant="caption" color="textMuted">
+            La próxima vez entras con {authLabel}, sin escribir tu contraseña. Actívalo solo
+            si el celular es tuyo.
+          </Text>
+        </CheckboxField>
+      ) : null}
+
+      <Button
+        label="Entrar"
+        onPress={form.submit}
+        loading={form.isSubmitting || isReactivating}
+        size="lg"
+        fullWidth
+        style={styles.submit}
+      />
+
+      {quickAccount && authKind ? (
+        <Button
+          label={
+            quickAccount.firstName
+              ? `Entrar como ${quickAccount.firstName}`
+              : `Entrar con ${authLabel}`
+          }
+          icon={deviceAuthIcon(authKind)}
+          variant="ghost"
+          onPress={() => setWantsForm(false)}
+          fullWidth
+          style={styles.backToQuick}
+        />
+      ) : null}
+
+      <View style={styles.footer}>
+        <Text variant="body" color="textMuted">
+          ¿No tienes cuenta?
+        </Text>
+        <PressableScale
+          onPress={() => router.push(routes.auth.register)}
+          haptic="tap"
+          style={styles.footerAction}
+        >
+          <Text variant="bodyStrong" color="brandStrong">
+            Crear cuenta
+          </Text>
+        </PressableScale>
+      </View>
+    </>
   );
 
   return (
@@ -177,76 +418,18 @@ export const LoginScreen = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text variant="title2">Hola de nuevo</Text>
-          <Text variant="body" color="textMuted" style={styles.subtitle}>
-            Ingresa para ver tus clientes y sus saldos.
-          </Text>
-
-          <TextField
-            label="Correo, celular o documento"
-            placeholder="tu@correo.com o 1020304050"
-            icon="person-outline"
-            value={form.values.identifier}
-            onChangeText={form.handleChange('identifier')}
-            onBlur={form.handleBlur('identifier')}
-            error={form.visibleError('identifier')}
-            autoCapitalize="none"
-            autoComplete="username"
-            keyboardType="email-address"
-            returnKeyType="next"
-            textContentType="username"
-          />
-
-          <TextField
-            label="Contraseña"
-            placeholder="Tu contraseña"
-            icon="lock-closed-outline"
-            value={form.values.password}
-            onChangeText={form.handleChange('password')}
-            onBlur={form.handleBlur('password')}
-            error={form.visibleError('password')}
-            secureTextEntry
-            autoComplete="current-password"
-            textContentType="password"
-            returnKeyType="go"
-            onSubmitEditing={form.submit}
-          />
-
-          <PressableScale
-            onPress={() =>
-              toast.info('La recuperación de contraseña estará disponible pronto.')
-            }
-            haptic="select"
-            style={styles.forgot}
-          >
-            <Text variant="captionStrong" color="brandStrong">
-              ¿Olvidaste tu contraseña?
-            </Text>
-          </PressableScale>
-
-          <Button
-            label="Entrar"
-            onPress={form.submit}
-            loading={form.isSubmitting || isReactivating}
-            size="lg"
-            fullWidth
-            style={styles.submit}
-          />
-
-          <View style={styles.footer}>
-            <Text variant="body" color="textMuted">
-              ¿No tienes cuenta?
-            </Text>
-            <PressableScale
-              onPress={() => router.push(routes.auth.register)}
-              haptic="tap"
-              style={styles.footerAction}
-            >
-              <Text variant="bodyStrong" color="brandStrong">
-                Crear cuenta
-              </Text>
-            </PressableScale>
-          </View>
+          {!remembered.isReady ? null : showQuickLogin && quickAccount && authKind ? (
+            <QuickLoginPanel
+              account={quickAccount}
+              kind={authKind}
+              loading={isUnlocking || isReactivating}
+              onUnlock={() => void handleUnlock()}
+              onUsePassword={() => openForm(quickAccount.identifier, true)}
+              onUseOtherAccount={() => openForm()}
+            />
+          ) : (
+            renderForm()
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -302,8 +485,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     paddingVertical: theme.spacing.xs,
   },
+  remember: {
+    marginTop: theme.spacing.md,
+  },
   submit: {
     marginTop: theme.spacing.lg,
+  },
+  backToQuick: {
+    marginTop: theme.spacing.sm,
   },
   footer: {
     flexDirection: 'row',
