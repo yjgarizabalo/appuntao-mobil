@@ -8,14 +8,15 @@
  * se importan entre sí (comparten a través de `domain` y `ui`).
  *
  * El texto está escrito desde el lado del cliente: "Te fiaron" y "Abonaste",
- * no "Deuda" y "Pago".
+ * no "Deuda" y "Pago". El descuento es "Te descontaron" y el reverso de un
+ * abono "Se reversó un abono"; el abono reversado se ve atenuado y tachado.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import { formatMoney, formatRelativeDate } from '@/core/utils/format';
 import { PAYMENT_METHOD_LABEL } from '@/domain/constants';
-import type { ClientMovement } from '@/domain/models';
+import { type ClientMovement, paymentEffect } from '@/domain/models';
 import { Text } from '@/ui';
 import { theme } from '@/theme';
 
@@ -28,10 +29,19 @@ export interface ClientMovementRowProps {
 export const ClientMovementRow = ({ row, hideStore = false }: ClientMovementRowProps) => {
   const { movement } = row;
   const isDebt = movement.kind === 'debt';
+  const payment = movement.kind === 'payment' ? movement.payment : null;
+  const isReversal = payment?.type === 'REVERSAL';
+  const isReversed = payment !== null && paymentEffect(payment).isReversed;
+  // Lo que sube el saldo (lo fiado y los reversos) va en rojo con `+`.
+  const raises = isDebt || isReversal;
 
   const title = isDebt
     ? movement.debt.description || 'Te fiaron'
-    : `Abonaste en ${PAYMENT_METHOD_LABEL[movement.payment.method].toLowerCase()}`;
+    : payment?.type === 'DISCOUNT'
+      ? 'Te descontaron'
+      : isReversal
+        ? 'Se reversó un abono'
+        : `Abonaste en ${PAYMENT_METHOD_LABEL[movement.payment.method].toLowerCase()}`;
 
   const date = isDebt
     ? formatRelativeDate(movement.debt.createdAt ?? movement.debt.dueDate)
@@ -44,13 +54,33 @@ export const ClientMovementRow = ({ row, hideStore = false }: ClientMovementRowP
       <View
         style={[
           styles.icon,
-          { backgroundColor: isDebt ? theme.color.dangerSoft : theme.color.brandSoft },
+          {
+            backgroundColor: isReversed
+              ? theme.color.surfaceSunken
+              : raises
+                ? theme.color.dangerSoft
+                : theme.color.brandSoft,
+          },
         ]}
       >
         <Ionicons
-          name={isDebt ? 'arrow-up' : 'arrow-down'}
+          name={
+            isDebt
+              ? 'arrow-up'
+              : isReversal
+                ? 'arrow-undo'
+                : payment?.type === 'DISCOUNT'
+                  ? 'pricetag-outline'
+                  : 'arrow-down'
+          }
           size={17}
-          color={isDebt ? theme.color.dangerStrong : theme.color.brandStrong}
+          color={
+            isReversed
+              ? theme.color.textMuted
+              : raises
+                ? theme.color.dangerStrong
+                : theme.color.brandStrong
+          }
         />
       </View>
 
@@ -67,10 +97,11 @@ export const ClientMovementRow = ({ row, hideStore = false }: ClientMovementRowP
 
       <Text
         variant="money"
-        color={isDebt ? 'dangerStrong' : 'brandStrong'}
+        color={isReversed ? 'textMuted' : raises ? 'dangerStrong' : 'brandStrong'}
         numberOfLines={1}
+        style={isReversed ? styles.reversedAmount : undefined}
       >
-        {isDebt ? '+' : '−'}
+        {raises ? '+' : '−'}
         {formatMoney(movement.amount)}
       </Text>
     </View>
@@ -94,5 +125,8 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     gap: 2,
+  },
+  reversedAmount: {
+    textDecorationLine: 'line-through',
   },
 });

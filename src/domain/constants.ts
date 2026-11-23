@@ -80,16 +80,19 @@ export const DEBT_STATUS_LABEL: Record<DebtStatus, string> = {
 /* ── Tipo de movimiento ───────────────────────────────────────────────────── */
 
 /**
- * El backend usa `type` para distinguir un abono de un ajuste. `REVERSAL` lo
- * genera él al reversar un pago global; la app nunca lo envía, pero sí lo
- * recibe y tiene que saber mostrarlo.
+ * `type` de un movimiento en el backend:
+ * - `PAYMENT`: abono, plata que entregó el cliente; baja el saldo.
+ * - `DISCOUNT`: descuento, lo que el negocio le perdona; baja el saldo sin
+ *   que entre plata. Lo hacen dueño y administrador, con motivo.
+ * - `REVERSAL`: reverso de un abono o un descuento; sube el saldo en lo mismo.
+ *   Lo crea el backend al reversar; la app nunca lo manda como tipo.
  */
-export const TRANSACTION_TYPES = ['PAYMENT', 'ADJUSTMENT', 'REVERSAL'] as const;
+export const TRANSACTION_TYPES = ['PAYMENT', 'DISCOUNT', 'REVERSAL'] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
 export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
   PAYMENT: 'Abono',
-  ADJUSTMENT: 'Ajuste',
+  DISCOUNT: 'Descuento',
   REVERSAL: 'Reverso',
 };
 

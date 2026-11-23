@@ -223,7 +223,30 @@ export interface Payment {
   totalAmount?: number;
   /** Marca los resúmenes sintéticos creados en el cliente, no en el backend. */
   isGlobalSummary?: boolean;
+  /** Pago global al que pertenece: se reversa con el grupo completo. */
+  paymentGroupId?: string;
+  /** En un reverso, el movimiento que deshace. */
+  reversedPaymentId?: string;
+  /** Si este abono o descuento ya fue reversado, el id de su reverso. */
+  reversalId?: string;
 }
+
+/**
+ * Cómo afecta un movimiento al saldo, para pintarlo igual en todos lados.
+ *
+ * `sign` es el efecto en lo que se debe: −1 lo baja (abono, descuento) y +1
+ * lo sube (reverso). `isReversed` marca un abono o descuento ya deshecho: se
+ * sigue mostrando en el historial, pero ya no cuenta.
+ */
+export const paymentEffect = (
+  payment: Payment,
+): { sign: 1 | -1; isReversed: boolean; canBeReversed: boolean } => {
+  const isReversed = payment.reversalId !== undefined;
+  if (payment.type === 'REVERSAL') {
+    return { sign: 1, isReversed: false, canBeReversed: false };
+  }
+  return { sign: -1, isReversed, canBeReversed: !isReversed };
+};
 
 export interface Debt {
   id: string;
@@ -305,8 +328,10 @@ export const buildMovements = (debts: Debt[]): Movement[] => {
 export interface DebtorSummary {
   /** Suma de lo fiado. */
   totalDebt: number;
-  /** Suma de lo abonado. */
+  /** Suma de lo abonado: plata que entregó el cliente, sin los reversados. */
   totalPaid: number;
+  /** Suma de los descuentos vigentes (lo que el negocio le perdonó). */
+  totalDiscount: number;
   /** Lo que falta por cobrar. */
   balance: number;
   openDebts: number;
@@ -318,6 +343,7 @@ export interface DebtorSummary {
 export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSummary => {
   let totalDebt = 0;
   let totalPaid = 0;
+  let totalDiscount = 0;
   let pending = 0;
   let openDebts = 0;
   let paidDebts = 0;
@@ -330,10 +356,13 @@ export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSum
     if (debt.status === 'CANCELLED') continue;
 
     totalDebt += debt.amount;
-    // Solo los abonos cuentan como "pagado"; un ajuste o un reverso mueven el
-    // saldo pero no son plata que el cliente entregó.
+    // Solo los abonos vigentes cuentan como "pagado": un descuento baja el
+    // saldo pero no es plata que el cliente entregó, y un abono reversado ya
+    // no cuenta (su reverso lo compensa).
     for (const payment of debt.payments) {
+      if (paymentEffect(payment).isReversed) continue;
       if (payment.type === 'PAYMENT') totalPaid += payment.amount;
+      if (payment.type === 'DISCOUNT') totalDiscount += payment.amount;
     }
 
     if (debt.status === 'PAID') {
@@ -359,7 +388,15 @@ export const summarizeDebts = (debts: Debt[], serverBalance?: number): DebtorSum
   const balance =
     debts.length > 0 ? Math.max(0, pending) : Math.max(0, serverBalance ?? 0);
 
-  return { totalDebt, totalPaid, balance, openDebts, paidDebts, oldestOverdueDate };
+  return {
+    totalDebt,
+    totalPaid,
+    totalDiscount,
+    balance,
+    openDebts,
+    paidDebts,
+    oldestOverdueDate,
+  };
 };
 
 /* ── El usuario visto como cliente ────────────────────────────────────────── */
