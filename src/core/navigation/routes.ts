@@ -34,6 +34,10 @@ export const routes = {
 
   business: {
     create: '/business/new' as Href,
+    /** Editar nombre y dirección del negocio activo (solo el dueño). */
+    edit: '/business/edit' as Href,
+    /** Negocios cerrados: reabrirlos o descargar su información. */
+    closed: '/business/closed' as Href,
     /** Pasarle la propiedad del negocio a un miembro (solo el dueño). */
     transfer: (businessId: string): Href =>
       ({ pathname: '/business/transfer', params: { businessId } }) as unknown as Href,

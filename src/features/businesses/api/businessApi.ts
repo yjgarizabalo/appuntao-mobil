@@ -1,10 +1,26 @@
 /**
- * API de negocios. `GET/POST /business`, `PATCH /business/:id/inactivate`.
+ * API de negocios: listar, crear, editar, cerrar y reabrir.
+ *
+ * Un negocio cerrado no sale en `GET /business`: sale en `GET /business/closed`
+ * con la fecha en que se eliminan sus datos. Hasta entonces el dueño puede
+ * reabrirlo o descargarlo.
  */
 import { http } from '@/core/http/client';
 import { DEFAULT_PAGE_SIZE, type Page, toItem, toPage } from '@/core/http/payload';
 import { mapBusiness } from '@/domain/mappers';
 import type { Business, BusinessDraft } from '@/domain/models';
+
+/** Un negocio cerrado del usuario, tal como lo devuelve `GET /business/closed`. */
+export interface ClosedBusiness {
+  id: string;
+  name: string;
+  /** Cuándo se cerró (ISO). */
+  inactivatedAt: string;
+  /** Cuándo se eliminan sus datos (ISO). */
+  dataDeletionScheduledAt: string;
+  /** Si todavía se puede reabrir (no venció el plazo). */
+  canReactivate: boolean;
+}
 
 /** Tope que acepta el backend en `limit` (PaginationDto lo valida con `@Max(100)`). */
 const MAX_PAGE_SIZE = 100;
@@ -42,6 +58,40 @@ export const businessApi = {
 
   create: async (draft: BusinessDraft): Promise<Business> => {
     const { data } = await http.post('/business', draft);
+    return mapBusiness(toItem(data));
+  },
+
+  /** `PATCH /business/:id` — nombre y dirección (solo el dueño). */
+  update: async (
+    businessId: string,
+    changes: { name?: string; address?: string },
+  ): Promise<Business> => {
+    const { data } = await http.patch(`/business/${businessId}`, changes);
+    return mapBusiness(toItem(data));
+  },
+
+  /** `GET /business/closed` — los negocios cerrados del usuario como dueño. */
+  listClosed: async (): Promise<ClosedBusiness[]> => {
+    const { data } = await http.get('/business/closed');
+    const items: unknown[] = Array.isArray(data) ? data : [];
+    return items.map((raw) => {
+      const item = (raw ?? {}) as Record<string, unknown>;
+      return {
+        id: String(item.id ?? ''),
+        name: String(item.name ?? ''),
+        inactivatedAt: String(item.inactivatedAt ?? ''),
+        dataDeletionScheduledAt: String(item.dataDeletionScheduledAt ?? ''),
+        canReactivate: item.canReactivate === true,
+      };
+    });
+  },
+
+  /**
+   * `PATCH /business/:id/reactivate` — reabre un negocio cerrado mientras sus
+   * datos no se hayan eliminado. Cuenta para el tope de 10 negocios activos.
+   */
+  reactivate: async (businessId: string): Promise<Business> => {
+    const { data } = await http.patch(`/business/${businessId}/reactivate`, {});
     return mapBusiness(toItem(data));
   },
 
