@@ -25,7 +25,10 @@ export const memberApi = {
     return toPage<unknown>(data, 1, MAX_MEMBERS).items.map(mapMember);
   },
 
-  /** `PATCH /business-users/:id` — cambia el rol de un miembro (ADMIN/OWNER). */
+  /**
+   * `PATCH /business-users/:id` — cambia el rol de un miembro. Ver
+   * `manageableRoles` para quién puede pasar a quién a qué rol.
+   */
   updateRole: async (
     businessId: string,
     memberId: string,
@@ -39,8 +42,16 @@ export const memberApi = {
     return mapMember(toItem(data));
   },
 
-  /** `DELETE /business-users/:id` — saca a un miembro del negocio (solo OWNER). */
+  /**
+   * `DELETE /business-users/:id` — saca a un miembro del negocio. El dueño
+   * saca a cualquiera; el administrador, a cajeros y solo lectura.
+   */
   remove: async (businessId: string, memberId: string): Promise<void> => {
     await http.delete(`/business-users/${memberId}`, businessHeader(businessId));
+  },
+
+  /** `DELETE /business-users/me` — salirse del negocio. El dueño no puede. */
+  leave: async (businessId: string): Promise<void> => {
+    await http.delete('/business-users/me', businessHeader(businessId));
   },
 };

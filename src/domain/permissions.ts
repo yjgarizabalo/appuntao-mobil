@@ -10,7 +10,11 @@
  * Si el backend cambia los roles de un endpoint, hay que actualizarlo aquí
  * también (esta tabla no se sincroniza sola).
  */
-import type { BusinessRole } from './constants';
+import {
+  ASSIGNABLE_BUSINESS_ROLES,
+  type AssignableBusinessRole,
+  type BusinessRole,
+} from './constants';
 
 /** Acciones sensibles a rol que la app puede disparar. */
 export type BusinessAction =
@@ -24,7 +28,7 @@ export type BusinessAction =
   | 'member:invite' // POST /invitations (equipo)
   | 'client:invite' // POST /invitations (cliente, tipo DEBTOR), reenviar y cancelar
   | 'client:unlink' // PATCH /debtors/:id/unlink
-  | 'member:manage' // POST/PATCH /business-users
+  | 'member:manage' // PATCH /business-users/:id
   | 'member:remove'; // DELETE /business-users/:id
 
 /** Roles permitidos por acción, calcados de `@BusinessRoles` en el backend. */
@@ -45,8 +49,9 @@ const ACTION_ROLES: Record<BusinessAction, readonly BusinessRole[]> = {
   // no al equipo (el backend lo rechaza con 403).
   'client:invite': ['OWNER', 'ADMIN', 'CASHIER'],
   'client:unlink': ['OWNER', 'ADMIN'],
+  // A quién maneja cada uno lo dice `manageableRoles`.
   'member:manage': ['OWNER', 'ADMIN'],
-  'member:remove': ['OWNER'],
+  'member:remove': ['OWNER', 'ADMIN'],
 };
 
 /**
@@ -66,3 +71,31 @@ export const can = (
   if (role == null) return true;
   return ACTION_ROLES[action].includes(role);
 };
+
+/**
+ * Los roles del equipo que maneja cada rol: invitar con ese rol, pasar a
+ * alguien a él, cambiarle el rol a quien lo tiene y sacarlo. Calcado de
+ * `team-rules.ts` del backend:
+ *  - el dueño maneja administradores, cajeros y solo lectura;
+ *  - el administrador solo cajeros y solo lectura (los administradores los
+ *    nombra el dueño);
+ *  - el cajero y solo lectura, a nadie.
+ *
+ * Con el rol aún desconocido devuelve todos, igual que `can`.
+ */
+const MANAGEABLE_ROLES: Record<BusinessRole, readonly AssignableBusinessRole[]> = {
+  OWNER: ['ADMIN', 'CASHIER', 'VIEWER'],
+  ADMIN: ['CASHIER', 'VIEWER'],
+  CASHIER: [],
+  VIEWER: [],
+};
+
+export const manageableRoles = (
+  role: BusinessRole | null | undefined,
+): readonly AssignableBusinessRole[] =>
+  role == null ? ASSIGNABLE_BUSINESS_ROLES : MANAGEABLE_ROLES[role];
+
+export const canManageRole = (
+  role: BusinessRole | null | undefined,
+  target: BusinessRole,
+): boolean => (manageableRoles(role) as readonly BusinessRole[]).includes(target);

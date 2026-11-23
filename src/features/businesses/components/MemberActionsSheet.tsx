@@ -5,7 +5,8 @@
  * una segunda hoja encima de esta y en Android el gesto se pierde). El dueño no
  * se puede tocar, así que el padre solo abre esta hoja para miembros
  * gestionables; aquí se muestran únicamente las acciones que el rol propio
- * permite (`canManageRole`, `canRemove`).
+ * permite (`canManageRole`, `canRemove`) y solo los roles que puede asignar
+ * (`roleOptions`: el administrador no ve "Administrador").
  *
  * "Quitar del negocio" no confirma aquí: el padre cierra la hoja y abre la
  * confirmación en `onClosed`, para que el diálogo no quede detrás de la hoja.
@@ -15,6 +16,7 @@ import { StyleSheet, View } from 'react-native';
 
 import {
   ASSIGNABLE_BUSINESS_ROLE_OPTIONS,
+  type AssignableBusinessRole,
   type BusinessRole,
 } from '@/domain/constants';
 import type { Member } from '@/domain/models';
@@ -28,6 +30,8 @@ export interface MemberActionsSheetProps {
   /** La hoja terminó de cerrarse. Ver `SheetProps.onClosed`. */
   onClosed?: () => void;
   canManageRole: boolean;
+  /** Los roles que quien gestiona puede asignar. */
+  roleOptions: readonly AssignableBusinessRole[];
   canRemove: boolean;
   onChangeRole: (role: BusinessRole) => void;
   onRemove: () => void;
@@ -41,6 +45,7 @@ export const MemberActionsSheet = ({
   onClose,
   onClosed,
   canManageRole,
+  roleOptions,
   canRemove,
   onChangeRole,
   onRemove,
@@ -60,7 +65,9 @@ export const MemberActionsSheet = ({
           Rol en el negocio
         </Text>
 
-        {ASSIGNABLE_BUSINESS_ROLE_OPTIONS.map((option, index) => {
+        {ASSIGNABLE_BUSINESS_ROLE_OPTIONS.filter((option) =>
+          roleOptions.includes(option.value),
+        ).map((option, index) => {
           const isSelected = member?.role === option.value;
           return (
             <View key={option.value}>
