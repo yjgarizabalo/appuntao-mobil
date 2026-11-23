@@ -108,8 +108,9 @@ export const ProfileScreen = () => {
   /**
    * Cerrar el negocio activo. El backend lo rechaza si aún hay deudas por
    * cobrar, y su mensaje lo explica. Cerrado, deja de aparecer para el dueño y
-   * su equipo, y su información se elimina pasado el plazo de retención: es
-   * definitivo, por eso se confirma en rojo.
+   * su equipo, y su información se elimina pasado el plazo de retención. Hasta
+   * entonces se puede reabrir desde "Negocios cerrados"; aun así se confirma
+   * en rojo.
    *
    * El botón secundario ofrece descargar la información antes, porque
    * después el negocio ya no aparece en la app. Tocar fuera cancela.
@@ -121,7 +122,7 @@ export const ProfileScreen = () => {
       tone: 'danger',
       title: `¿Cerrar ${target.name}?`,
       message:
-        'Dejará de aparecer para ti y para tu equipo, y su información se eliminará más adelante. No se puede volver a abrir. Si quieres quedarte con sus clientes, deudas y abonos, descarga el Excel primero. Si alguien va a seguir con él, mejor pásaselo.',
+        'Dejará de aparecer para ti y para tu equipo. Podrás reabrirlo o descargar su información desde "Negocios cerrados" hasta que se elimine. Si alguien va a seguir con él, mejor pásaselo.',
       confirmLabel: 'Cerrar negocio',
       cancelLabel: 'Descargar Excel primero',
       onCancel: () => {
@@ -137,8 +138,8 @@ export const ProfileScreen = () => {
             tone: 'success',
             title: `${target.name} quedó cerrado`,
             message: when
-              ? `Su información se eliminará definitivamente el ${when}.`
-              : 'Su información se eliminará más adelante.',
+              ? `Su información se eliminará definitivamente el ${when}. Hasta entonces puedes reabrirlo desde "Negocios cerrados".`
+              : 'Su información se eliminará más adelante. Hasta entonces puedes reabrirlo desde "Negocios cerrados".',
             confirmLabel: 'Entendido',
           });
         } catch (caught) {
@@ -376,6 +377,13 @@ export const ProfileScreen = () => {
                 <>
                   <Divider inset />
                   <SettingRow
+                    icon="create-outline"
+                    label="Editar negocio"
+                    description="Nombre y dirección"
+                    onPress={() => router.push(routes.business.edit)}
+                  />
+                  <Divider inset />
+                  <SettingRow
                     icon="swap-horizontal-outline"
                     label="Pasar el negocio"
                     description="Que alguien de tu equipo quede como dueño"
@@ -400,6 +408,13 @@ export const ProfileScreen = () => {
               ) : null}
             </>
           )}
+          <Divider inset />
+          <SettingRow
+            icon="archive-outline"
+            label="Negocios cerrados"
+            description="Reábrelos o descarga su información"
+            onPress={() => router.push(routes.business.closed)}
+          />
           <Divider inset />
           <SettingRow
             icon="ticket-outline"
