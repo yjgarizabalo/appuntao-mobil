@@ -42,6 +42,7 @@ import type {
   TransferCandidate,
   User,
 } from './models';
+import { paymentEffect } from './models';
 
 type Raw = Record<string, unknown>;
 
@@ -73,7 +74,9 @@ const asPaymentMethod = (value: unknown): PaymentMethod => {
 
 const asTransactionType = (value: unknown): TransactionType => {
   const raw = asString(value).toUpperCase();
-  if (raw === 'ADJUSTMENT' || raw === 'REVERSAL') return raw;
+  // `ADJUSTMENT` es el nombre viejo del descuento; puede seguir en la caché.
+  if (raw === 'DISCOUNT' || raw === 'ADJUSTMENT') return 'DISCOUNT';
+  if (raw === 'REVERSAL') return 'REVERSAL';
   return 'PAYMENT';
 };
 
@@ -256,6 +259,7 @@ export const mapBusinessSummary = (raw: unknown, businessId?: string): BusinessS
 
 export const mapPayment = (raw: unknown, debtId = ''): Payment => {
   const data = (raw ?? {}) as Raw;
+  const reversal = (data.reversal ?? null) as Raw | null;
   return {
     id: asString(data.id),
     debtId: asString(data.debtId, debtId),
@@ -266,6 +270,9 @@ export const mapPayment = (raw: unknown, debtId = ''): Payment => {
     note: asString(data.note),
     createdAt: data.createdAt === undefined ? undefined : asString(data.createdAt),
     totalAmount: data.totalAmount === undefined ? undefined : toAmount(data.totalAmount),
+    paymentGroupId: data.paymentGroupId ? asString(data.paymentGroupId) : undefined,
+    reversedPaymentId: data.reversedPaymentId ? asString(data.reversedPaymentId) : undefined,
+    reversalId: reversal?.id ? asString(reversal.id) : undefined,
   };
 };
 
@@ -280,8 +287,11 @@ export const mapDebt = (raw: unknown, businessId = ''): Debt => {
     : [];
 
   // `remainingAmount` y `balance` son dos nombres para lo mismo según el
-  // endpoint; si no viene ninguno, se calcula con los pagos.
-  const paid = payments.reduce((total, payment) => total + payment.amount, 0);
+  // endpoint; si no viene ninguno, se calcula con los movimientos.
+  const paid = payments.reduce(
+    (total, payment) => total - paymentEffect(payment).sign * payment.amount,
+    0,
+  );
   const remainingRaw = data.remainingAmount ?? data.balance;
   const remainingAmount =
     remainingRaw === undefined ? Math.max(0, amount - paid) : toAmount(remainingRaw);

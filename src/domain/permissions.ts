@@ -19,7 +19,8 @@ export type BusinessAction =
   | 'debt:create' // POST /debts
   | 'debt:cancel' // PATCH /debts/:id/status (anular)
   | 'payment:create' // POST /payments y /payments/global
-  | 'payment:reverse' // POST /payments/global/reverse/:groupId
+  | 'payment:discount' // POST /payments/discounts
+  | 'payment:reverse' // POST /payments/:id/reverse y /payments/global/reverse/:groupId
   | 'member:invite' // POST /invitations (equipo)
   | 'client:invite' // POST /invitations (cliente, tipo DEBTOR), reenviar y cancelar
   | 'client:unlink' // PATCH /debtors/:id/unlink
@@ -35,6 +36,9 @@ const ACTION_ROLES: Record<BusinessAction, readonly BusinessRole[]> = {
   // de pagos, queda para el dueño y el administrador.
   'debt:cancel': ['OWNER', 'ADMIN'],
   'payment:create': ['OWNER', 'ADMIN', 'CASHIER'],
+  // Descontar y reversar mueven el saldo sin que entre plata: como anular,
+  // quedan para el dueño y el administrador.
+  'payment:discount': ['OWNER', 'ADMIN'],
   'payment:reverse': ['OWNER', 'ADMIN'],
   'member:invite': ['OWNER', 'ADMIN'],
   // El cajero atiende a los clientes en el mostrador: puede invitarlos, pero

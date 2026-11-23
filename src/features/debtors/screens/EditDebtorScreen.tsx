@@ -109,7 +109,7 @@ export const EditDebtorScreen = () => {
       dialog.show({
         tone: 'warning',
         title: 'Todavía te debe',
-        message: `${debtor.name} tiene un saldo de ${formatMoney(balance)}. Registra el pago (o anula las deudas que registraste por error) antes de quitarlo.`,
+        message: `${debtor.name} tiene un saldo de ${formatMoney(balance)}. Registra el pago o un descuento (o anula las deudas que registraste por error) antes de quitarlo.`,
       });
       return;
     }

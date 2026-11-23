@@ -9,8 +9,13 @@
  * diferencia del botón de la pantalla, que reparte el pago entre todas
  * (`POST /payments/global`).
  *
- * Y se anula una deuda mal registrada, solo si todavía no tiene abonos: con
- * abonos, anularla escondería plata que sí entró.
+ * Y se anula una deuda mal registrada, solo si no tiene abonos ni descuentos
+ * vigentes: con abonos, anularla escondería plata que sí entró.
+ *
+ * El dueño y el administrador también corrigen desde aquí: hacen un descuento
+ * (lo que se le perdona al cliente) y reversan un abono o un descuento mal
+ * registrado. Nada se borra: el reverso queda en la lista y el movimiento
+ * reversado se ve tachado.
  */
 import { StyleSheet, View } from 'react-native';
 
@@ -20,7 +25,7 @@ import {
   PAYMENT_METHOD_LABEL,
   TRANSACTION_TYPE_LABEL,
 } from '@/domain/constants';
-import type { Debt } from '@/domain/models';
+import { type Debt, type Payment, paymentEffect } from '@/domain/models';
 import { Badge, Button, Divider, Sheet, Text } from '@/ui';
 import { theme } from '@/theme';
 
@@ -36,6 +41,13 @@ export interface DebtDetailSheetProps {
    * la opción.
    */
   onCancelDebt?: (debt: Debt) => void;
+  /** Abre el descuento de esta deuda. Sin él (cajero) no se muestra. */
+  onDiscount?: (debt: Debt) => void;
+  /**
+   * Pide reversar un abono o un descuento. Sin él (cajero) no se muestra. Si
+   * el abono es parte de un pago global, quien lo recibe reversa el grupo.
+   */
+  onReversePayment?: (payment: Payment) => void;
 }
 
 export const DebtDetailSheet = ({
@@ -44,18 +56,28 @@ export const DebtDetailSheet = ({
   debt,
   onRegisterPayment,
   onCancelDebt,
+  onDiscount,
+  onReversePayment,
 }: DebtDetailSheetProps) => {
   if (!debt) return null;
 
-  const paid = debt.payments.reduce(
+  // Solo cuenta lo vigente: un abono o descuento reversado ya no cuenta.
+  const live = debt.payments.filter((payment) => !paymentEffect(payment).isReversed);
+  const paid = live.reduce(
     (total, payment) => (payment.type === 'PAYMENT' ? total + payment.amount : total),
+    0,
+  );
+  const discounted = live.reduce(
+    (total, payment) => (payment.type === 'DISCOUNT' ? total + payment.amount : total),
     0,
   );
   const isOpen = debt.status !== 'PAID' && debt.status !== 'CANCELLED';
   const isCancelled = debt.status === 'CANCELLED';
   // Lo mismo que exige el backend: sin abonos y sin ningún otro movimiento.
   const canCancel =
-    onCancelDebt !== undefined && debt.status === 'OPEN' && debt.payments.length === 0;
+    onCancelDebt !== undefined &&
+    debt.status === 'OPEN' &&
+    !debt.payments.some((payment) => paymentEffect(payment).canBeReversed);
   const isOverdue =
     isOpen && debt.dueDate.length > 0 && new Date(debt.dueDate).getTime() < Date.now();
 
@@ -71,13 +93,24 @@ export const DebtDetailSheet = ({
       scrollable
       footer={
         isOpen ? (
-          <Button
-            label="Abonar a esta deuda"
-            icon="cash-outline"
-            onPress={() => onRegisterPayment(debt)}
-            size="lg"
-            fullWidth
-          />
+          <View style={styles.footer}>
+            <Button
+              label="Abonar a esta deuda"
+              icon="cash-outline"
+              onPress={() => onRegisterPayment(debt)}
+              size="lg"
+              fullWidth
+            />
+            {onDiscount ? (
+              <Button
+                label="Hacer un descuento"
+                icon="pricetag-outline"
+                variant="ghost"
+                onPress={() => onDiscount(debt)}
+                fullWidth
+              />
+            ) : null}
+          </View>
         ) : undefined
       }
     >
@@ -113,38 +146,63 @@ export const DebtDetailSheet = ({
 
       <Row label="Total fiado" value={formatMoney(debt.amount)} />
       <Row label="Total abonado" value={`− ${formatMoney(paid)}`} tone="brandStrong" />
+      {discounted > 0 ? (
+        <Row label="Descuentos" value={`− ${formatMoney(discounted)}`} tone="brandStrong" />
+      ) : null}
       {debt.dueDate ? <Row label="Vence" value={formatDate(debt.dueDate)} /> : null}
 
       <View style={styles.paymentsHeader}>
         <Text variant="captionStrong" color="textMuted">
           {debt.payments.length === 0
             ? 'Sin abonos todavía'
-            : `Abonos (${debt.payments.length})`}
+            : `Movimientos (${debt.payments.length})`}
         </Text>
       </View>
 
-      {debt.payments.map((payment, index) => (
-        <View key={payment.id}>
-          {index > 0 ? <Divider /> : null}
-          <View style={styles.payment}>
-            <View style={styles.paymentBody}>
-              <Text variant="bodyStrong" numberOfLines={1}>
-                {payment.type === 'PAYMENT'
-                  ? PAYMENT_METHOD_LABEL[payment.method]
-                  : TRANSACTION_TYPE_LABEL[payment.type]}
-              </Text>
-              <Text variant="caption" color="textMuted" numberOfLines={1}>
-                {[formatRelativeDate(payment.createdAt), payment.note]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
+      {debt.payments.map((payment, index) => {
+        const effect = paymentEffect(payment);
+        const raises = effect.sign > 0;
+        return (
+          <View key={payment.id}>
+            {index > 0 ? <Divider /> : null}
+            <View style={styles.payment}>
+              <View style={styles.paymentBody}>
+                <Text variant="bodyStrong" numberOfLines={1}>
+                  {payment.type === 'PAYMENT'
+                    ? `${PAYMENT_METHOD_LABEL[payment.method]}${payment.paymentGroupId ? ' · pago global' : ''}`
+                    : TRANSACTION_TYPE_LABEL[payment.type]}
+                </Text>
+                <Text variant="caption" color="textMuted" numberOfLines={2}>
+                  {[formatRelativeDate(payment.createdAt), payment.note]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+                {effect.isReversed ? (
+                  <Badge label="Reversado" tone="neutral" style={styles.reversedBadge} />
+                ) : null}
+              </View>
+              <View style={styles.paymentSide}>
+                <Text
+                  variant="money"
+                  color={effect.isReversed ? 'textMuted' : raises ? 'dangerStrong' : 'brandStrong'}
+                  style={effect.isReversed ? styles.reversedAmount : undefined}
+                >
+                  {raises ? '+' : '−'} {formatMoney(payment.amount)}
+                </Text>
+                {onReversePayment && effect.canBeReversed && !isCancelled ? (
+                  <Button
+                    label={payment.paymentGroupId ? 'Reversar pago global' : 'Reversar'}
+                    icon="arrow-undo-outline"
+                    variant="ghost"
+                    size="sm"
+                    onPress={() => onReversePayment(payment)}
+                  />
+                ) : null}
+              </View>
             </View>
-            <Text variant="money" color="brandStrong">
-              − {formatMoney(payment.amount)}
-            </Text>
           </View>
-        </View>
-      ))}
+        );
+      })}
 
       {canCancel ? (
         <View style={styles.cancelSection}>
@@ -219,6 +277,20 @@ const styles = StyleSheet.create({
   paymentBody: {
     flex: 1,
     gap: 2,
+  },
+  paymentSide: {
+    alignItems: 'flex-end',
+    gap: theme.spacing.xs,
+  },
+  reversedAmount: {
+    textDecorationLine: 'line-through',
+  },
+  reversedBadge: {
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing.xs,
+  },
+  footer: {
+    gap: theme.spacing.xs,
   },
   cancelSection: {
     marginTop: theme.spacing.xl,

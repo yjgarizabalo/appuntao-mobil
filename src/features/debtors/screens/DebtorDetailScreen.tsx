@@ -30,6 +30,7 @@ import type { PaymentMethod } from '@/domain/constants';
 import {
   type Debt,
   type Debtor,
+  type Payment,
   buildMovements,
   summarizeDebts,
 } from '@/domain/models';
@@ -41,6 +42,7 @@ import { debtorApi } from '@/features/debtors/api/debtorApi';
 import { ClientAccessCard } from '@/features/debtors/components/ClientAccessCard';
 import { MovementRow } from '@/features/debtors/components/MovementRow';
 import { paymentApi } from '@/features/payments/api/paymentApi';
+import { DiscountSheet } from '@/features/payments/components/DiscountSheet';
 import { RegisterPaymentSheet } from '@/features/payments/components/RegisterPaymentSheet';
 import {
   AnimatedMoney,
@@ -94,6 +96,8 @@ export const DebtorDetailScreen = () => {
    * y una deuda concreta abona solo a esa (`/payments`). `null` = hoja cerrada.
    */
   const [paymentTarget, setPaymentTarget] = useState<Debt | 'all' | null>(null);
+  /** Deuda a la que se le hace un descuento. `null` = hoja cerrada. */
+  const [discountTarget, setDiscountTarget] = useState<Debt | null>(null);
 
   const detail = useAsyncData<DetailData>(
     // Una sola petición: la ficha trae todas sus deudas con sus pagos.
@@ -178,6 +182,71 @@ export const DebtorDetailScreen = () => {
       );
     },
     [businessId, dialog, reloadAfterMutation, toast],
+  );
+
+  const handleDiscount = useCallback(
+    async ({ amount, reason }: { amount: number; reason: string }) => {
+      const target = discountTarget;
+      if (target === null) return;
+      try {
+        await paymentApi.createDiscount(businessId, { debtId: target.id, amount, reason });
+        setDiscountTarget(null);
+        toast.success(`Descuento de ${formatMoney(amount)} registrado`);
+        await reloadAfterMutation();
+      } catch (caught) {
+        setDiscountTarget(null);
+        dialog.showError(toAppError(caught));
+      }
+    },
+    [businessId, dialog, discountTarget, reloadAfterMutation, toast],
+  );
+
+  /**
+   * Reversar: igual que anular, se cierra la hoja y la confirmación entra
+   * justo después. Un abono de un pago global no se reversa suelto: se ofrece
+   * reversar el pago completo y se dice a cuántas deudas toca.
+   */
+  const askReverse = useCallback(
+    (payment: Payment) => {
+      setSelectedDebt(null);
+
+      const groupId = payment.paymentGroupId;
+      const groupParts = groupId
+        ? debts.flatMap((debt) => debt.payments).filter((p) => p.paymentGroupId === groupId)
+        : [];
+      const groupTotal = groupParts.reduce((total, p) => total + p.amount, 0);
+      const isDiscount = payment.type === 'DISCOUNT';
+
+      setTimeout(
+        () =>
+          dialog.confirm({
+            tone: 'danger',
+            title: groupId
+              ? `¿Reversar el pago global de ${formatMoney(groupTotal)}?`
+              : isDiscount
+                ? `¿Reversar el descuento de ${formatMoney(payment.amount)}?`
+                : `¿Reversar el abono de ${formatMoney(payment.amount)}?`,
+            message: groupId
+              ? `Ese pago se repartió en ${groupParts.length} ${groupParts.length === 1 ? 'deuda' : 'deudas'}: se reversa completo y vuelven a deber lo mismo que antes. Queda en el historial y no se puede deshacer.`
+              : `Vuelve a deber ${formatMoney(payment.amount)}. ${isDiscount ? 'El descuento' : 'El abono'} queda en el historial como reversado y no se puede deshacer.`,
+            confirmLabel: 'Reversar',
+            cancelLabel: 'Volver',
+            onConfirm: async () => {
+              try {
+                if (groupId) await paymentApi.reverseGlobal(businessId, groupId);
+                else await paymentApi.reverse(businessId, payment.id);
+                toast.info(groupId ? 'Pago global reversado' : 'Movimiento reversado');
+              } catch (caught) {
+                dialog.showError(toAppError(caught));
+              } finally {
+                await reloadAfterMutation();
+              }
+            },
+          }),
+        300,
+      );
+    },
+    [businessId, debts, dialog, reloadAfterMutation, toast],
   );
 
   const handleRegisterPayment = useCallback(
@@ -506,11 +575,15 @@ export const DebtorDetailScreen = () => {
                 {index > 0 ? <Divider /> : null}
                 <MovementRow
                   movement={movement}
-                  onPress={
-                    movement.kind === 'debt'
-                      ? () => setSelectedDebt(movement.debt)
-                      : undefined
-                  }
+                  onPress={() => {
+                    // Un pago abre la deuda a la que se aplicó: ahí se ve
+                    // completo y, si hace falta, se reversa.
+                    const debt =
+                      movement.kind === 'debt'
+                        ? movement.debt
+                        : debts.find((item) => item.id === movement.payment.debtId);
+                    if (debt) setSelectedDebt(debt);
+                  }}
                 />
               </View>
             ))}
@@ -540,11 +613,12 @@ export const DebtorDetailScreen = () => {
         onSubmit={handleAddDebt}
       />
 
-      {/* La hoja de la deuda se retira en cuanto se va a cobrar: dos `Modal`
-          montados a la vez (uno saliendo, otro entrando) dejan al de Android
-          sin aparecer. La de pago sí permanece montada, para que al cerrarla
-          se deslice hacia abajo en vez de desaparecer de golpe. */}
-      {paymentTarget === null ? (
+      {/* La hoja de la deuda se retira en cuanto se va a cobrar o descontar:
+          dos `Modal` montados a la vez (uno saliendo, otro entrando) dejan al
+          de Android sin aparecer. Las de pago y descuento sí permanecen
+          montadas, para que al cerrarlas se deslicen hacia abajo en vez de
+          desaparecer de golpe. */}
+      {paymentTarget === null && discountTarget === null ? (
         <DebtDetailSheet
           visible={selectedDebt !== null}
           onClose={() => setSelectedDebt(null)}
@@ -554,8 +628,26 @@ export const DebtorDetailScreen = () => {
             setPaymentTarget(debt);
           }}
           onCancelDebt={can('debt:cancel', businessId) ? askCancelDebt : undefined}
+          onDiscount={
+            can('payment:discount', businessId)
+              ? (debt) => {
+                  setSelectedDebt(null);
+                  setDiscountTarget(debt);
+                }
+              : undefined
+          }
+          onReversePayment={can('payment:reverse', businessId) ? askReverse : undefined}
         />
       ) : null}
+
+      <DiscountSheet
+        visible={discountTarget !== null}
+        onClose={() => setDiscountTarget(null)}
+        debtorName={debtor.name}
+        target={discountTarget?.description || 'esta deuda'}
+        balance={discountTarget?.remainingAmount ?? 0}
+        onSubmit={handleDiscount}
+      />
 
       <RegisterPaymentSheet
         visible={paymentTarget !== null}

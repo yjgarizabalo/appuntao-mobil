@@ -2,30 +2,68 @@
  * Fila del extracto de movimientos.
  *
  * Una deuda y un pago se distinguen sin leer: icono y color opuestos, y el
- * signo del importe (`+` lo que se fía, `−` lo que abona). Así el extracto se
- * escanea como el cuaderno que reemplaza.
+ * signo del importe (`+` lo que sube el saldo, `−` lo que lo baja). Así el
+ * extracto se escanea como el cuaderno que reemplaza.
+ *
+ * Además del abono están el descuento (baja el saldo, icono de etiqueta) y el
+ * reverso (lo sube, flecha de deshacer). Un abono o descuento reversado sigue
+ * en el historial, atenuado y con la marca "Reversado".
  */
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import { formatMoney, formatRelativeDate } from '@/core/utils/format';
 import { DEBT_STATUS_LABEL, PAYMENT_METHOD_LABEL } from '@/domain/constants';
-import type { Movement } from '@/domain/models';
+import { type Movement, paymentEffect } from '@/domain/models';
 import { Badge, PressableScale, Text } from '@/ui';
 import { theme } from '@/theme';
 
 export interface MovementRowProps {
   movement: Movement;
-  /** Solo las deudas se abren: un abono no tiene más detalle que el que se ve. */
+  /** Abre la hoja de la deuda (en un pago, la deuda a la que se aplicó). */
   onPress?: () => void;
 }
 
+type Look = {
+  title: string;
+  icon: 'arrow-up' | 'arrow-down' | 'pricetag-outline' | 'arrow-undo';
+  /** `+` sube lo que se debe; `−` lo baja. */
+  sign: '+' | '−';
+  tone: 'danger' | 'brand';
+};
+
+const lookOf = (movement: Movement): Look => {
+  if (movement.kind === 'debt') {
+    return {
+      title: movement.debt.description || 'Deuda',
+      icon: 'arrow-up',
+      sign: '+',
+      tone: 'danger',
+    };
+  }
+  const { payment } = movement;
+  if (payment.type === 'DISCOUNT') {
+    return { title: 'Descuento', icon: 'pricetag-outline', sign: '−', tone: 'brand' };
+  }
+  if (payment.type === 'REVERSAL') {
+    return { title: 'Reverso', icon: 'arrow-undo', sign: '+', tone: 'danger' };
+  }
+  return {
+    title: payment.paymentGroupId
+      ? `Pago en ${PAYMENT_METHOD_LABEL[payment.method].toLowerCase()} (repartido)`
+      : `Pago en ${PAYMENT_METHOD_LABEL[payment.method].toLowerCase()}`,
+    icon: 'arrow-down',
+    sign: '−',
+    tone: 'brand',
+  };
+};
+
 export const MovementRow = ({ movement, onPress }: MovementRowProps) => {
   const isDebt = movement.kind === 'debt';
-
-  const title = isDebt
-    ? movement.debt.description || 'Deuda'
-    : `Pago en ${PAYMENT_METHOD_LABEL[movement.payment.method].toLowerCase()}`;
+  const look = lookOf(movement);
+  const { title } = look;
+  const isReversed = movement.kind === 'payment' && paymentEffect(movement.payment).isReversed;
+  const isDanger = look.tone === 'danger';
 
   const subtitle = isDebt
     ? formatRelativeDate(movement.debt.createdAt ?? movement.debt.dueDate)
@@ -38,13 +76,25 @@ export const MovementRow = ({ movement, onPress }: MovementRowProps) => {
       <View
         style={[
           styles.icon,
-          { backgroundColor: isDebt ? theme.color.dangerSoft : theme.color.brandSoft },
+          {
+            backgroundColor: isReversed
+              ? theme.color.surfaceSunken
+              : isDanger
+                ? theme.color.dangerSoft
+                : theme.color.brandSoft,
+          },
         ]}
       >
         <Ionicons
-          name={isDebt ? 'arrow-up' : 'arrow-down'}
+          name={look.icon}
           size={17}
-          color={isDebt ? theme.color.dangerStrong : theme.color.brandStrong}
+          color={
+            isReversed
+              ? theme.color.textMuted
+              : isDanger
+                ? theme.color.dangerStrong
+                : theme.color.brandStrong
+          }
         />
       </View>
 
@@ -62,12 +112,15 @@ export const MovementRow = ({ movement, onPress }: MovementRowProps) => {
       <View style={styles.amount}>
         <Text
           variant="money"
-          color={isDebt ? 'dangerStrong' : 'brandStrong'}
+          color={isReversed ? 'textMuted' : isDanger ? 'dangerStrong' : 'brandStrong'}
           numberOfLines={1}
+          style={isReversed ? styles.reversedAmount : undefined}
         >
-          {isDebt ? '+' : '−'}
+          {look.sign}
           {formatMoney(movement.amount)}
         </Text>
+
+        {isReversed ? <Badge label="Reversado" tone="neutral" /> : null}
 
         {isDebt && movement.debt.status !== 'OPEN' ? (
           <Badge
@@ -122,5 +175,8 @@ const styles = StyleSheet.create({
   amount: {
     alignItems: 'flex-end',
     gap: theme.spacing.xs,
+  },
+  reversedAmount: {
+    textDecorationLine: 'line-through',
   },
 });
