@@ -43,7 +43,20 @@
         }
       ],
       "expo-font",
-      "./plugins/withWhatsAppQueries.js"
+      "./plugins/withWhatsAppQueries.js",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Appuntao usa Face ID para que entres sin escribir tu contraseña."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Appuntao usa Face ID para que entres sin escribir tu contraseña."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

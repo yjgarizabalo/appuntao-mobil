@@ -59,6 +59,12 @@ export interface Business {
    * adelante, para la pantalla de equipo.
    */
   members?: Member[];
+  /**
+   * Fecha de creación (ISO). Solo se usa para elegir el negocio de arranque
+   * cuando el usuario no tiene uno principal (`defaultBusiness`). Opcional
+   * porque la caché de versiones anteriores no la tiene.
+   */
+  createdAt?: string;
 }
 
 /** Una persona con acceso a un negocio y el rol que tiene en él. */
@@ -132,6 +138,35 @@ export const roleInBusiness = (
   // respaldo por si el backend recortara la lista de miembros.
   if (business.ownerId && business.ownerId === userId) return 'OWNER';
   return null;
+};
+
+/**
+ * Negocio por defecto cuando el usuario no eligió uno principal ni hay uno
+ * en uso de esta sesión: el más antiguo de los que **es dueño**, y si no es
+ * dueño de ninguno, el más antiguo de todos.
+ *
+ * Antes se tomaba el primero de `GET /business`, que llega ordenado por fecha
+ * de creación **descendente**: tras iniciar sesión la app abría siempre en el
+ * último negocio creado, y hasta en uno ajeno donde lo acababan de meter como
+ * cajero. El más antiguo propio no cambia al crear o al unirse a otro, y casi
+ * siempre es la tienda de toda la vida.
+ *
+ * Si a algún negocio le falta `createdAt` (caché de una versión anterior), se
+ * confía en el orden del backend y se toma la lista al revés.
+ */
+export const defaultBusiness = (
+  businesses: Business[],
+  userId: string | null | undefined,
+): Business | null => {
+  const allDated = businesses.every((business) => Boolean(business.createdAt));
+  const oldestFirst = allDated
+    ? [...businesses].sort(
+        (a, b) => Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''),
+      )
+    : [...businesses].reverse();
+
+  const owned = oldestFirst.find((business) => roleInBusiness(business, userId) === 'OWNER');
+  return owned ?? oldestFirst[0] ?? null;
 };
 
 /* ── Cliente / deudor ─────────────────────────────────────────────────────── */

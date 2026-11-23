@@ -7,6 +7,13 @@
  * el usuario sabe que la función existe y que todavía no está lista.
  *
  * El cierre de sesión pide confirmación, porque volver a entrar cuesta.
+ *
+ * "Entrar sin contraseña" muestra si el ingreso rápido está activo **para esta
+ * cuenta** en este teléfono, y desde aquí se apaga. No se enciende desde aquí:
+ * hace falta la contraseña, y comprobarla obligaría a iniciar sesión otra vez
+ * sobre la sesión viva —el backend rota el refresh token y una renovación en
+ * vuelo con el viejo se leería como un robo—. Se activa con la casilla del
+ * login, y la fila lo explica.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,10 +23,13 @@ import { Linking, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { env } from '@/core/config/env';
+import { deviceAuthLabel } from '@/core/device/deviceAuth';
 import { toAppError } from '@/core/errors/AppError';
 import { routes } from '@/core/navigation/routes';
 import { formatLongDate, formatPhone, pluralize } from '@/core/utils/format';
 import { displayName } from '@/domain/models';
+import { deviceAuthIcon } from '@/features/auth/components/QuickLoginPanel';
+import { useRememberedLogin } from '@/features/auth/model/useRememberedLogin';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { businessApi } from '@/features/businesses/api/businessApi';
 import { exportApi } from '@/features/businesses/api/exportApi';
@@ -58,6 +68,7 @@ export const ProfileScreen = () => {
   useRefreshBusinessesOnFocus();
   const dialog = useDialog();
   const toast = useToast();
+  const remembered = useRememberedLogin();
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isClosingBusiness, setIsClosingBusiness] = useState(false);
@@ -65,6 +76,13 @@ export const ProfileScreen = () => {
 
   const fullName = displayName(user);
   const isClientMode = mode === 'client';
+
+  /** Método del teléfono para el ingreso rápido; `null` si no tiene con qué. */
+  const authKind =
+    remembered.support.status === 'available' ? remembered.support.kind : null;
+  const authLabel = authKind ? deviceAuthLabel(authKind) : '';
+  /** Activo para **esta** cuenta (el teléfono puede recordar a otra persona). */
+  const isQuickLoginOn = Boolean(user?.id) && remembered.account?.userId === user?.id;
   /** Pasar o cerrar el negocio es solo del dueño. */
   const ownsActiveBusiness =
     Boolean(activeBusiness) &&
@@ -145,7 +163,9 @@ export const ProfileScreen = () => {
       title: allDevices ? '¿Cerrar sesión en todos?' : '¿Cerrar sesión?',
       message: allDevices
         ? 'Se cerrará aquí y en cualquier otro teléfono o tablet donde hayas entrado.'
-        : 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
+        : isQuickLoginOn
+          ? `Para volver a entrar en este celular te bastará con ${authLabel}.`
+          : 'Tendrás que ingresar tu correo y contraseña para volver a entrar.',
       confirmLabel: 'Cerrar sesión',
       onConfirm: async () => {
         setIsLoggingOut(true);
@@ -158,6 +178,35 @@ export const ProfileScreen = () => {
           setIsLoggingOut(false);
         }
       },
+    });
+  };
+
+  /**
+   * Activo → se ofrece apagarlo. Apagado → se explica cómo encenderlo (ver
+   * la cabecera: desde aquí no se puede, hace falta la contraseña).
+   */
+  const handleQuickLogin = () => {
+    if (isQuickLoginOn) {
+      dialog.confirm({
+        tone: 'warning',
+        title: '¿Dejar de entrar sin contraseña?',
+        message:
+          'Borraremos tus datos guardados en este celular. Para volver a entrar tendrás que escribir tu contraseña.',
+        confirmLabel: 'Sí, borrarlos',
+        cancelLabel: 'Dejarlo así',
+        onConfirm: async () => {
+          await remembered.forget();
+          toast.info('Listo: tus datos ya no están guardados en este celular.');
+        },
+      });
+      return;
+    }
+
+    dialog.show({
+      tone: 'info',
+      title: 'Entra sin escribir tu contraseña',
+      message: `Se activa al iniciar sesión: marca «Recordar mis datos en este celular» y la próxima vez solo necesitarás ${authLabel}. Actívalo solo si el celular es tuyo.`,
+      confirmLabel: 'Entendido',
     });
   };
 
@@ -249,6 +298,22 @@ export const ProfileScreen = () => {
             description="Cambia tu contraseña"
             onPress={() => router.push(routes.settings.security)}
           />
+          {authKind ? (
+            <>
+              <Divider inset />
+              <SettingRow
+                icon={deviceAuthIcon(authKind)}
+                label="Entrar sin contraseña"
+                description={
+                  isQuickLoginOn
+                    ? `Con ${authLabel} en este celular`
+                    : `Usa ${authLabel} en vez de tu contraseña`
+                }
+                trailing={isQuickLoginOn ? <Badge label="Activo" tone="success" /> : undefined}
+                onPress={handleQuickLogin}
+              />
+            </>
+          ) : null}
           <Divider inset />
           <SettingRow
             icon="notifications-outline"

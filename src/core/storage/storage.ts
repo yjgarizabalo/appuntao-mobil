@@ -34,6 +34,22 @@ export const StorageKeys = {
    * en esa vista, no en la de su tienda.
    */
   appMode: 'app_mode',
+  /**
+   * Negocio principal de cada persona en este dispositivo, como JSON
+   * `{ [userId]: businessId }`. **No se borra al cerrar sesión**: es una
+   * preferencia, no un dato de la sesión, y va por usuario para que otra
+   * cuenta del mismo celular no la herede. Ver `favoriteBusiness.ts`.
+   */
+  favoriteBusinesses: 'favorite_businesses',
+  /**
+   * Marca de que hay datos guardados para entrar con la autenticación del
+   * celular; su valor es el `userId` dueño. Los datos en sí van cifrados en
+   * `SecureStore` (`@/core/storage/secureStorage`). Esta marca vive aquí
+   * porque AsyncStorage se borra al desinstalar la app y el llavero de iOS
+   * no: sin marca, lo que quede en el llavero se descarta. **No se borra al
+   * cerrar sesión**: recordar los datos es justo para volver a entrar.
+   */
+  rememberedLogin: 'remembered_login',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

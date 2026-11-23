@@ -12,6 +12,10 @@
  *  - al terminar, el servidor **cierra todas las sesiones** del usuario. Por
  *    eso no se vuelve atrás con un toast: se avisa con un diálogo y se sale
  *    al login, que es lo que va a pasar de todas formas.
+ *
+ * Si la persona entra con la huella (ingreso rápido), la contraseña recordada
+ * se reemplaza por la nueva antes de salir: así el login que el cambio obliga
+ * sigue siendo con la huella, sin que tenga que volver a activarlo.
  */
 import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
@@ -20,6 +24,7 @@ import { toAppError } from '@/core/errors/AppError';
 import { useForm } from '@/core/hooks/useForm';
 import { matches, password as passwordRule, required } from '@/core/utils/validation';
 import { authApi } from '@/features/auth/api/authApi';
+import { updateRememberedPassword } from '@/features/auth/model/rememberedLogin';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   AppBar,
@@ -57,7 +62,7 @@ const STRENGTH_COLOR = [
 ] as const;
 
 export const SecurityScreen = () => {
-  const { endSession } = useSession();
+  const { user, endSession } = useSession();
   const dialog = useDialog();
 
   const form = useForm({
@@ -79,6 +84,7 @@ export const SecurityScreen = () => {
 
       try {
         await authApi.updatePassword(values.currentPassword, values.password);
+        if (user?.id) await updateRememberedPassword(user.id, values.password);
 
         dialog.show({
           tone: 'success',

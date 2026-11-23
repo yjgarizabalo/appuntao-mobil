@@ -132,12 +132,12 @@ appuntao-mobil-v2/
 ├── src/
 │   ├── core/                 # infraestructura, sin nada de negocio
 │   │   ├── config/env.ts     # variables de entorno validadas
-│   │   ├── device/           # identidad de la instalación (deviceId, deviceName)
+│   │   ├── device/           # identidad de la instalación y autenticación del dueño (deviceAuth)
 │   │   ├── errors/           # AppError: un solo modelo de error
 │   │   ├── http/             # cliente axios, refresh, normalización de payloads
 │   │   ├── hooks/            # useForm, useAsyncData, usePagedList, useDebouncedValue
 │   │   ├── navigation/       # routes.ts — todas las rutas en un sitio
-│   │   ├── storage/          # AsyncStorage tipado
+│   │   ├── storage/          # AsyncStorage tipado + SecureStore para secretos
 │   │   ├── logger/           # logs con niveles y redacción de tokens
 │   │   ├── connectivity.ts   # estado de la red (expo-network)
 │   │   ├── haptics.ts
@@ -147,7 +147,7 @@ appuntao-mobil-v2/
 │   ├── ui/                   # design system (24 componentes)
 │   └── features/             # una carpeta por área de negocio
 │       ├── account/          # ciclo de vida de la cuenta propia: api · screens
-│       ├── auth/             # api · components · session · screens
+│       ├── auth/             # api · model (ingreso rápido) · components · session · screens
 │       ├── businesses/       # api · state · components · screens
 │       ├── client/           # modo cliente: api · state · components · screens
 │       ├── debtors/          # api · components · screens
@@ -246,8 +246,8 @@ Reglas:
 
 | Provider           | Hook              | Para qué                                                                      |
 | ------------------ | ----------------- | ----------------------------------------------------------------------------- |
-| `SessionProvider`  | `useSession()`    | `status`, `user`, `login`, `register`, `logout(opciones)`, `endSession`, `patchUser` |
-| `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), `selectBusiness`, `createBusiness`, `refresh`, `refreshIfStale` |
+| `SessionProvider`  | `useSession()`    | `status`, `user`, `login(credenciales, { remember })`, `register`, `logout(opciones)`, `endSession`, `patchUser` |
+| `BusinessProvider` | `useBusinesses()` | negocios, **negocio activo** (persistido), **negocio principal** (`favoriteBusinessId`, por usuario), `selectBusiness`, `setFavoriteBusiness`, `createBusiness`, `refresh`, `refreshIfStale` |
 | `AppModeProvider`  | `useAppMode()`    | **modo** `merchant` / `client` (persistido), tiendas donde al usuario le fían, `setMode`, `refreshAccounts` |
 
 Todo lo demás **no** es estado global: clientes, deudas y pagos los carga cada pantalla con
@@ -276,6 +276,23 @@ mínimo entre consultas y nunca dos a la vez:
   `onBusinessForbidden` (`core/http/businessAccess.ts`).
 
 `refresh()` es la recarga con indicador (pull-to-refresh, reintentar).
+
+**Con qué negocio abre la app.** El usuario marca un negocio **principal** con la estrella
+de "Mis negocios" (solo aparece con dos negocios o más), y la app abre **siempre** en él:
+al iniciar sesión y al volver a abrirla. El orden lo resuelve `BusinessProvider` y ninguna
+pantalla lo repite:
+
+1. el principal, si sigue en la lista;
+2. si no hay principal, el último usado (solo existe si la sesión venía de antes);
+3. si tampoco, `defaultBusiness()` de `@/domain/models`: el más antiguo del que es dueño.
+   **Nunca** `businesses[0]`: `GET /business` viene por fecha de creación descendente, y
+   eso hacía abrir siempre el último creado.
+
+Una vez dentro, el negocio que el usuario elige se respeta hasta que cierre la app: una
+respuesta tardía del servidor no lo devuelve al principal. El principal se guarda en el
+dispositivo, por usuario (`favorite_businesses`), y no viaja a otros celulares; si el
+principal desaparece de la lista del servidor, se olvida solo. Marcarlo **no** cambia el
+negocio activo.
 
 ---
 
@@ -344,6 +361,32 @@ reglas que no se pueden saltar:
 El límite de intentos de login (5 por minuto) llega como **429** → `AppError('RATE_LIMITED')`.
 Se muestra el mensaje y **no se reintenta solo**.
 
+### Ingreso rápido (recordar los datos)
+
+Opcional: la casilla "Recordar mis datos en este celular" del login guarda el identificador
+y la contraseña, y la próxima vez se entra con la huella, el rostro o el PIN/patrón del
+celular. Vive en `src/features/auth/model/rememberedLogin.ts`. Reglas:
+
+- **La contraseña nunca va a AsyncStorage.** Va cifrada en `SecureStore` (Keychain /
+  Keystore) por medio de `@/core/storage/secureStorage`, y solo se lee **después** de que
+  `authenticateOwner()` (`@/core/device/deviceAuth`) diga que quien tiene el teléfono es su
+  dueño. Cualquier otro secreto que se agregue sigue el mismo camino.
+- Solo se guarda tras un login **aceptado por el backend**: lo hace `login(credenciales,
+  { remember: true })` antes de marcar la sesión como iniciada. `remember: false` olvida los
+  datos si son de esa cuenta; sin `remember` no se toca nada (es el propio ingreso rápido).
+- Sin bloqueo de pantalla no se ofrece, y si el teléfono lo pierde, lo guardado se borra.
+- `logout()` y la sesión vencida **no** lo borran: es para volver a entrar. Cambiar la
+  contraseña lo **actualiza** con la nueva (`updateRememberedPassword`). Desactivar y
+  eliminar la cuenta lo **borran** en cuanto el backend confirma (`forgetRememberedLoginOf`),
+  sin esperar al diálogo. Un 401 del ingreso rápido lo borra y pide la contraseña.
+- Se apaga desde Perfil → "Entrar sin contraseña", pero **no se enciende desde ahí**:
+  comprobar la contraseña obligaría a un login encima de la sesión viva, y el refresh
+  token rotado de una renovación en vuelo se leería como un robo (regla 3 de arriba).
+- El aviso de huella se lanza solo **una vez por arranque** y solo si la app abrió sin
+  sesión. Después de un logout no: quien sale suele querer entrar con otra cuenta.
+- Quien pueda desbloquear el celular puede entrar con la cuenta recordada. La casilla lo
+  dice ("actívalo solo si el celular es tuyo"); no lo escondas.
+
 ### Ciclo de vida de la cuenta y de los negocios
 
 Lo maneja el módulo `account-lifecycle` del backend (su documento está en
@@ -360,7 +403,8 @@ Lo maneja el módulo `account-lifecycle` del backend (su documento está en
 Reglas:
 
 - Desactivar, eliminar y cambiar la contraseña cierran la sesión **en el servidor**. Al
-  terminar se usa `endSession()` (solo limpia el dispositivo), no `logout()`.
+  terminar se usa `endSession()` (solo limpia el dispositivo), no `logout()`. Antes, cada
+  pantalla borra o actualiza el ingreso rápido (ver «Ingreso rápido»).
 - **La descarga en Excel se ofrece antes de cerrar**, no después: un negocio cerrado ya no
   aparece en la lista, así que después no hay de dónde descargarlo. Va en "Cerrar
   negocio" y en la tarjeta de cada negocio de "Eliminar cuenta". Mientras la rama
@@ -453,8 +497,16 @@ Llaves de AsyncStorage (contrato, compatible con el v1): `auth_token`, `refresh_
 y las tres últimas se borran al cerrar sesión para que la siguiente cuenta del dispositivo
 no herede ni el negocio ni el modo.
 
-`device_id` es la excepción: se escribe una vez y **sobrevive al cierre de sesión**, porque
-identifica la instalación ante el backend (ver «Sesión y dispositivo»).
+Tres llaves **sobreviven al cierre de sesión**, a propósito:
+
+- `device_id`: se escribe una vez e identifica la instalación ante el backend (ver «Sesión
+  y dispositivo»);
+- `favorite_businesses`: el negocio principal de cada usuario, como `{ [userId]: businessId }`.
+  Es una preferencia de la persona y va por usuario, así que otra cuenta no la hereda;
+- `remembered_login`: la **marca** del ingreso rápido (el `userId` dueño). Los datos van en
+  `SecureStore` (llaves `remembered_login_account` y `remembered_login_password`, por
+  `SecureKeys`). La marca está en AsyncStorage porque este se borra al desinstalar y el
+  llavero de iOS no: sin marca, lo que quede en el llavero se descarta.
 
 ---
 
@@ -583,7 +635,10 @@ editar Gradle a mano ni resolver conflictos en archivos nativos.
    dentro del modal. `Sheet` ya lo hace; si creas otra superposición con gestos, cópialo.
 5. **Permisos**: si activas cámara, ubicación o notificaciones hay que añadir el config
    plugin y los textos de iOS (`NSCameraUsageDescription`, etc.) en `app.json` y **volver a
-   hacer prebuild**.
+   hacer prebuild**. Face ID ya está declarado: lo escriben **dos** plugins
+   (`expo-local-authentication` y `expo-secure-store`) en `NSFaceIDUsageDescription`, y
+   los dos llevan el mismo texto en español; si cambias uno, cambia el otro o el que gane
+   dejará el suyo. En Expo Go para iOS no hay Face ID: el ingreso rápido pide el código.
 6. **Push en iOS** requiere build nativo con EAS + APNs; no funciona en Expo Go.
 7. **Tema claro fijo** (`userInterfaceStyle: light`). La estructura de roles está lista para
    modo oscuro, pero no está activado: no asumas que funciona.
@@ -631,6 +686,10 @@ npm run builds               # últimos 10 builds y su estado
 - [ ] ¿La respuesta pasa por un mapper de `@/domain/mappers`?
 - [ ] ¿Los errores llegan al usuario (`useDialog` / `useToast`), no solo a la consola?
 - [ ] ¿Hay estado de carga (skeleton), vacío y error?
+- [ ] ¿Se guarda algo secreto (una contraseña, una llave)? Va en `SecureStore` por
+      `@/core/storage/secureStorage`, nunca en AsyncStorage.
+- [ ] ¿La pantalla elige un negocio por su cuenta? No: el de arranque lo decide
+      `BusinessProvider` (principal → último usado → `defaultBusiness`), nunca `businesses[0]`.
 - [ ] ¿Las versiones siguen intactas? (`dependencies` de `package.json` y `package-lock.json`
       sin tocar)
 - [ ] Si el cambio toca `app.json`, `eas.json` o una variable `EXPO_PUBLIC_*`:

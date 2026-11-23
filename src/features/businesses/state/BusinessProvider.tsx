@@ -19,6 +19,12 @@
  *  - cuando una operación sobre un negocio responde 403 (`onBusinessForbidden`).
  * `refreshIfStale` deja un mínimo de tiempo entre consultas y nunca lanza dos a
  * la vez.
+ *
+ * **Con qué negocio arranca.** El usuario puede marcar un negocio **principal**
+ * (`setFavoriteBusiness`), y la app abre siempre en él: al iniciar sesión y al
+ * volver a abrirla. Sin principal, al abrir sigue en el último que usó y, tras
+ * iniciar sesión, en el más antiguo propio (`defaultBusiness`). Una vez dentro,
+ * el negocio que el usuario elige se respeta hasta que cierre la app.
  */
 import { useFocusEffect } from 'expo-router';
 import {
@@ -39,10 +45,19 @@ import { createLogger } from '@/core/logger';
 import { readCache, writeCache } from '@/core/storage/cache';
 import { StorageKeys, getItem, setItem } from '@/core/storage/storage';
 import type { BusinessRole } from '@/domain/constants';
-import { type Business, type BusinessDraft, roleInBusiness } from '@/domain/models';
+import {
+  type Business,
+  type BusinessDraft,
+  defaultBusiness,
+  roleInBusiness,
+} from '@/domain/models';
 import { type BusinessAction, can as canDo } from '@/domain/permissions';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { businessApi } from '@/features/businesses/api/businessApi';
+import {
+  readFavoriteBusinessId,
+  writeFavoriteBusinessId,
+} from '@/features/businesses/state/favoriteBusiness';
 
 const log = createLogger('business');
 
@@ -71,6 +86,17 @@ interface BusinessContextValue {
   error: AppError | null;
   /** `true` cuando el usuario todavía no ha creado ningún negocio. */
   isEmpty: boolean;
+  /**
+   * Negocio principal del usuario en este dispositivo: con el que abre la app.
+   * `null` si no eligió ninguno.
+   */
+  favoriteBusinessId: string | null;
+  /**
+   * Marca (o con `null`, quita) el negocio principal. No cambia el negocio
+   * activo: solo decide con cuál arranca la próxima vez. Devuelve `false` si
+   * no se pudo guardar.
+   */
+  setFavoriteBusiness: (businessId: string | null) => Promise<boolean>;
   selectBusiness: (businessId: string) => void;
   /** Recarga con indicador (pull-to-refresh, botón de reintentar). */
   refresh: () => Promise<void>;
@@ -91,6 +117,7 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusinessId, setActiveBusinessId] = useState<string | null>(null);
+  const [favoriteBusinessId, setFavoriteBusinessId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -106,17 +133,57 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   /**
-   * Restaura el negocio guardado; si ya no existe (lo borraron), cae al primero
-   * disponible. Se ejecuta tanto al hidratar de caché como tras la red.
+   * `true` mientras se está decidiendo el negocio de arranque, que es cuando
+   * manda el principal. Deja de serlo en cuanto el servidor responde la
+   * primera vez o el usuario elige un negocio a mano: si el backend tarda en
+   * despertar y entre tanto el usuario cambió de negocio, la respuesta no
+   * debe devolverlo al principal sin que lo pida. Vuelve a `true` al salir.
    */
-  const resolveActiveBusiness = useCallback(async (items: Business[]) => {
-    const storedId = await getItem(StorageKeys.activeBusinessId);
-    const preferred = items.find((business) => business.id === storedId) ?? items[0] ?? null;
-    setActiveBusinessId(preferred?.id ?? null);
-    if (preferred && preferred.id !== storedId) {
-      await setItem(StorageKeys.activeBusinessId, preferred.id);
-    }
-  }, []);
+  const isStartupRef = useRef(true);
+
+  /**
+   * Decide el negocio activo. Se ejecuta tanto al hidratar de caché como tras
+   * la red.
+   *
+   *  - Al arrancar: el principal, si no hay principal el último usado (solo
+   *    existe si la sesión venía de antes) y si no, `defaultBusiness`.
+   *  - Después: el que está en uso; si ya no existe (lo cerraron o sacaron al
+   *    usuario del equipo), el principal o `defaultBusiness`.
+   */
+  const resolveActiveBusiness = useCallback(
+    async (items: Business[], { fromServer }: { fromServer: boolean }) => {
+      const [storedId, favoriteId] = await Promise.all([
+        getItem(StorageKeys.activeBusinessId),
+        userId ? readFavoriteBusinessId(userId) : Promise.resolve(null),
+      ]);
+      const findById = (id: string | null) =>
+        id ? items.find((business) => business.id === id) : undefined;
+
+      const stored = findById(storedId);
+      const favorite = findById(favoriteId);
+
+      // El principal ya no está en la lista: se olvida. Solo con la respuesta
+      // del servidor; la caché puede ser vieja y no prueba que haya desaparecido.
+      // El estado se limpia solo si sigue siendo ese: si el usuario marcó otro
+      // mientras tanto, gana lo que eligió.
+      if (fromServer && favoriteId && !favorite && userId) {
+        await writeFavoriteBusinessId(userId, null);
+        setFavoriteBusinessId((current) => (current === favoriteId ? null : current));
+      }
+
+      const preferred = isStartupRef.current
+        ? (favorite ?? stored ?? defaultBusiness(items, userId))
+        : (stored ?? favorite ?? defaultBusiness(items, userId));
+
+      if (fromServer) isStartupRef.current = false;
+
+      setActiveBusinessId(preferred?.id ?? null);
+      if (preferred && preferred.id !== storedId) {
+        await setItem(StorageKeys.activeBusinessId, preferred.id);
+      }
+    },
+    [userId],
+  );
 
   /** Cuándo terminó la última carga desde la red, y si hay una en curso. */
   const lastLoadedAtRef = useRef(0);
@@ -136,7 +203,7 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       const hit = await readCache<Business[]>(cacheKey);
       if (hit && hit.data.length > 0) {
         applyBusinesses(hit.data);
-        await resolveActiveBusiness(hit.data);
+        await resolveActiveBusiness(hit.data, { fromServer: false });
         setHasLoaded(true);
       }
     }
@@ -144,7 +211,7 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
     try {
       const items = await businessApi.listAll();
       applyBusinesses(items);
-      await resolveActiveBusiness(items);
+      await resolveActiveBusiness(items, { fromServer: true });
       if (cacheKey) void writeCache(cacheKey, items);
       lastLoadedAtRef.current = Date.now();
     } catch (caught) {
@@ -190,7 +257,8 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
   // (con un margen corto para no repetir si fallan varias peticiones a la vez).
   useEffect(() => onBusinessForbidden(() => void refreshIfStale(2_000)), [refreshIfStale]);
 
-  // Se cargan al autenticarse y se limpian al salir.
+  // Se cargan al autenticarse y se limpian al salir. El próximo inicio de
+  // sesión vuelve a decidir el negocio de arranque.
   useEffect(() => {
     if (isAuthenticated) {
       void load();
@@ -199,13 +267,42 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       setActiveBusinessId(null);
       setHasLoaded(false);
       setError(null);
+      isStartupRef.current = true;
     }
   }, [isAuthenticated, load, applyBusinesses]);
 
+  // El principal es de la persona: se lee cada vez que cambia el usuario.
+  useEffect(() => {
+    if (!userId) {
+      setFavoriteBusinessId(null);
+      return;
+    }
+    let cancelled = false;
+    void readFavoriteBusinessId(userId).then((id) => {
+      if (!cancelled) setFavoriteBusinessId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
   const selectBusiness = useCallback((businessId: string) => {
+    // Una elección a mano cierra el arranque: ninguna respuesta tardía del
+    // servidor debe devolver al usuario al principal.
+    isStartupRef.current = false;
     setActiveBusinessId(businessId);
     void setItem(StorageKeys.activeBusinessId, businessId);
   }, []);
+
+  const setFavoriteBusiness = useCallback(
+    async (businessId: string | null) => {
+      if (!userId) return false;
+      const saved = await writeFavoriteBusinessId(userId, businessId);
+      if (saved) setFavoriteBusinessId(businessId);
+      return saved;
+    },
+    [userId],
+  );
 
   const createBusiness = useCallback(
     async (draft: BusinessDraft) => {
@@ -263,6 +360,8 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       error,
       isEmpty: hasLoaded && businesses.length === 0,
+      favoriteBusinessId,
+      setFavoriteBusiness,
       selectBusiness,
       refresh,
       refreshIfStale,
@@ -278,6 +377,8 @@ export const BusinessProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       error,
       hasLoaded,
+      favoriteBusinessId,
+      setFavoriteBusiness,
       selectBusiness,
       refresh,
       refreshIfStale,

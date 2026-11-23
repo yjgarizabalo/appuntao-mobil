@@ -12,6 +12,10 @@
  * Igual que al cambiar la contraseña o eliminar la cuenta, el servidor ya
  * invalidó las sesiones, así que al terminar solo se limpia el dispositivo
  * (`endSession`).
+ *
+ * Si la cuenta estaba recordada para entrar con la huella, se olvida en
+ * cuanto el backend confirma, sin esperar a que se cierre el diálogo: quien
+ * desactiva su cuenta puede estar entregando el teléfono.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -20,6 +24,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
 import { accountApi } from '@/features/account/api/accountApi';
+import { forgetRememberedLoginOf } from '@/features/auth/model/rememberedLogin';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import {
   AppBar,
@@ -45,7 +50,7 @@ const POINTS: { icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
 ];
 
 export const DeactivateAccountScreen = () => {
-  const { endSession } = useSession();
+  const { user, endSession } = useSession();
   const dialog = useDialog();
 
   const [password, setPassword] = useState('');
@@ -60,6 +65,7 @@ export const DeactivateAccountScreen = () => {
     setIsSubmitting(true);
     try {
       await accountApi.deactivate(password);
+      if (user?.id) await forgetRememberedLoginOf(user.id);
       dialog.show({
         tone: 'info',
         title: 'Tu cuenta quedó desactivada',

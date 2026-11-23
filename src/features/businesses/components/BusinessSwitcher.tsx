@@ -7,6 +7,10 @@
  *
  * Si el usuario solo tiene un negocio, se muestra como texto sin gesto de
  * cambio: no tiene sentido ofrecer una elección de una sola opción.
+ *
+ * La hoja marca con una estrella el negocio **principal**, el que la app abre
+ * siempre. Aquí solo se muestra: se elige en "Mis negocios", donde está la
+ * explicación. Cambiar de negocio desde esta hoja no cambia el principal.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
@@ -24,7 +28,7 @@ export interface BusinessSwitcherProps {
 }
 
 export const BusinessSwitcher = ({ inverse = false, style }: BusinessSwitcherProps) => {
-  const { businesses, activeBusiness, selectBusiness } = useBusinesses();
+  const { businesses, activeBusiness, favoriteBusinessId, selectBusiness } = useBusinesses();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!activeBusiness) return null;
@@ -79,6 +83,7 @@ export const BusinessSwitcher = ({ inverse = false, style }: BusinessSwitcherPro
         <View>
           {businesses.map((business, index) => {
             const isActive = business.id === activeBusiness.id;
+            const isFavorite = business.id === favoriteBusinessId;
             return (
               <View key={business.id}>
                 {index > 0 ? <Divider /> : null}
@@ -89,12 +94,25 @@ export const BusinessSwitcher = ({ inverse = false, style }: BusinessSwitcherPro
                   style={styles.option}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: isActive }}
+                  accessibilityLabel={
+                    isFavorite ? `${business.name}, negocio principal` : business.name
+                  }
                 >
                   <IconBubble icon="storefront-outline" tone={isActive ? 'brand' : 'neutral'} />
                   <View style={styles.optionText}>
-                    <Text variant="bodyStrong" color={isActive ? 'brandStrong' : 'text'}>
-                      {business.name}
-                    </Text>
+                    <View style={styles.optionTitle}>
+                      <Text
+                        variant="bodyStrong"
+                        color={isActive ? 'brandStrong' : 'text'}
+                        numberOfLines={1}
+                        style={styles.optionName}
+                      >
+                        {business.name}
+                      </Text>
+                      {isFavorite ? (
+                        <Ionicons name="star" size={14} color={theme.color.brand} />
+                      ) : null}
+                    </View>
                     {business.address ? (
                       <Text variant="caption" color="textMuted" numberOfLines={1}>
                         {business.address}
@@ -138,5 +156,13 @@ const styles = StyleSheet.create({
   optionText: {
     flex: 1,
     gap: 2,
+  },
+  optionTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  optionName: {
+    flexShrink: 1,
   },
 });
