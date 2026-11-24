@@ -329,7 +329,7 @@ export const LoginScreen = () => {
       />
 
       <PressableScale
-        onPress={() => toast.info('La recuperación de contraseña estará disponible pronto.')}
+        onPress={() => router.push(routes.auth.forgotPassword(form.values.identifier.trim()))}
         haptic="select"
         style={styles.forgot}
       >

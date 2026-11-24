@@ -76,6 +76,9 @@ qué se decidió y —sobre todo— **qué se verificó y qué no**.
   negocio principal (la app ya no abre en el último creado) y recordar los datos para entrar
   con la huella o el bloqueo del celular. Agrega `expo-local-authentication` y
   `expo-secure-store`: hace falta un build nuevo.
+- [**2026-11-24-recuperar-contrasena.md**](bitacora/2026-11-24-recuperar-contrasena.md) —
+  «¿Olvidaste tu contraseña?» ya funciona: código de 6 dígitos al correo y contraseña nueva,
+  en una sola pantalla de tres pasos. Sin dependencias nuevas.
 
 ---
 

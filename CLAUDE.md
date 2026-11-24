@@ -361,6 +361,21 @@ reglas que no se pueden saltar:
 El límite de intentos de login (5 por minuto) llega como **429** → `AppError('RATE_LIMITED')`.
 Se muestra el mensaje y **no se reintenta solo**.
 
+### Recuperar la contraseña
+
+`/forgot-password` (`features/auth/screens/ForgotPasswordScreen.tsx`) es una sola pantalla
+con tres pasos: correo → código de 6 dígitos → contraseña nueva. Usa
+`authApi.requestPasswordReset`, `verifyPasswordResetCode` y `resetPassword`
+(`/auth/password/forgot`, `verify-code` y `reset`). Reglas:
+
+1. **Nunca digas si el correo tiene cuenta.** El backend responde 200 igual; la app siempre
+   pasa al paso del código con un texto condicional ("Si … es el correo de una cuenta").
+2. **El reenvío espera 60 s.** Es lo que espera el backend; antes de eso ignora el pedido.
+3. Los errores del código llegan como el mismo **400** (equivocado, vencido o agotado) y se
+   pintan junto al campo con el texto del backend. Si `reset` responde así, se vuelve al
+   paso del código.
+4. `reset` **cierra todas las sesiones y no inicia sesión**: se termina en el login.
+
 ### Ingreso rápido (recordar los datos)
 
 Opcional: la casilla "Recordar mis datos en este celular" del login guarda el identificador
