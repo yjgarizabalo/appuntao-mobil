@@ -23,6 +23,11 @@ export const routes = {
   auth: {
     login: '/login' as Href,
     register: '/register' as Href,
+    /** Recuperar la contraseña olvidada. Con `email`, el campo llega escrito. */
+    forgotPassword: (email?: string): Href =>
+      (email
+        ? { pathname: '/forgot-password', params: { email } }
+        : '/forgot-password') as unknown as Href,
   },
 
   tabs: {

@@ -153,4 +153,34 @@ export const authApi = {
   ): Promise<void> => {
     await http.patch('/users/me/password', { currentPassword, newPassword });
   },
+
+  /**
+   * `POST /auth/password/forgot` — pide un código de 6 dígitos al correo.
+   *
+   * Responde 200 exista o no una cuenta con ese correo: la app no puede (ni
+   * debe) saber cuál de los dos pasó.
+   */
+  requestPasswordReset: async (email: string): Promise<void> => {
+    await http.post(`${AUTH}/password/forgot`, { email }, { ...skipAuthRefresh });
+  },
+
+  /**
+   * `POST /auth/password/verify-code` — comprueba el código sin cambiar nada.
+   * Un código malo responde 400 y gasta uno de sus 5 intentos.
+   */
+  verifyPasswordResetCode: async (email: string, code: string): Promise<void> => {
+    await http.post(`${AUTH}/password/verify-code`, { email, code }, { ...skipAuthRefresh });
+  },
+
+  /**
+   * `POST /auth/password/reset` — cambia la contraseña con el código. El
+   * backend cierra todas las sesiones y no inicia sesión: hay que ir al login.
+   */
+  resetPassword: async (email: string, code: string, newPassword: string): Promise<void> => {
+    await http.post(
+      `${AUTH}/password/reset`,
+      { email, code, newPassword },
+      { ...skipAuthRefresh },
+    );
+  },
 };
