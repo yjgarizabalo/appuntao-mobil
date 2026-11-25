@@ -133,7 +133,7 @@ export const RegisterScreen = () => {
       }
 
       try {
-        await register({
+        const { emailVerificationRequired } = await register({
           firstName: values.firstName.trim(),
           lastName: values.lastName.trim(),
           documentType: values.documentType as DocumentType,
@@ -143,6 +143,14 @@ export const RegisterScreen = () => {
           password: values.password,
           acceptedLegalDocumentIds: documents.map((doc) => doc.id),
         });
+
+        // El backend ya envió el código: se pide antes de dejarlo entrar.
+        if (emailVerificationRequired) {
+          router.replace(
+            routes.auth.verifyEmail(values.email.trim().toLowerCase(), 'register'),
+          );
+          return;
+        }
 
         dialog.show({
           tone: 'success',

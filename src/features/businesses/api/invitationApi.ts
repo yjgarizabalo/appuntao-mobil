@@ -16,6 +16,10 @@
  * **Lado de la persona invitada** (solo autenticada): ver las que le llegaron
  * (`incoming`), ver una por su código, aceptarla o rechazarla. En esa vista el
  * backend no devuelve el código ni el contacto.
+ *
+ * **Aceptar siempre pide el código**, también desde `incoming`: la lista la ve
+ * cualquiera con ese correo o teléfono en su cuenta, y el teléfono no se
+ * verifica. El código solo lo tiene quien recibió el WhatsApp o el correo.
  */
 import { businessHeader, http } from '@/core/http/client';
 import { toItem, toList, toPage } from '@/core/http/payload';
@@ -138,12 +142,6 @@ export const invitationApi = {
     const { data } = await http.post('/invitations/accept', {
       code: normalizeInvitationCode(code),
     });
-    return toAccepted(data);
-  },
-
-  /** `POST /invitations/:id/accept` — aceptar una que aparece en la app. */
-  acceptById: async (invitationId: string): Promise<AcceptedInvitation> => {
-    const { data } = await http.post(`/invitations/${invitationId}/accept`, {});
     return toAccepted(data);
   },
 

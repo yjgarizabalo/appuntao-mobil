@@ -180,6 +180,16 @@ export const LoginScreen = () => {
           return;
         }
 
+        // La contraseña era correcta, pero falta confirmar el correo. El
+        // backend ya envió el código; al confirmarlo se vuelve aquí.
+        if (error.reason === 'EMAIL_NOT_VERIFIED') {
+          const email = typeof error.payload?.email === 'string' ? error.payload.email : '';
+          if (email) {
+            router.push(routes.auth.verifyEmail(email, 'login'));
+            return;
+          }
+        }
+
         if (error.reason === 'ACCOUNT_DISABLED') {
           dialog.showError(
             new AppError('FORBIDDEN', { title: 'Cuenta desactivada', message: error.message }),

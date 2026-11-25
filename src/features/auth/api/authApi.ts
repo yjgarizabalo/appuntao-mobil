@@ -50,6 +50,16 @@ export interface RegisterPayload {
   acceptedLegalDocumentIds: string[];
 }
 
+/** Lo que responde el registro. */
+export interface RegisterResult {
+  user: User;
+  /**
+   * `true` si el backend exige confirmar el correo antes del login (siempre
+   * en production). Ya envió el código: la app pasa a pedirlo.
+   */
+  emailVerificationRequired: boolean;
+}
+
 export interface AuthSession {
   accessToken: string;
   refreshToken: string | null;
@@ -108,9 +118,13 @@ export const authApi = {
    *
    * No se envía `role`: el backend lo ignora y toda cuenta nueva nace `USER`.
    */
-  register: async (payload: RegisterPayload): Promise<User> => {
+  register: async (payload: RegisterPayload): Promise<RegisterResult> => {
     const { data } = await http.post('/users', payload, { ...skipAuthRefresh });
-    return mapUser(toItem(data));
+    const body = toItem<Record<string, unknown>>(data);
+    return {
+      user: mapUser(body),
+      emailVerificationRequired: body?.emailVerificationRequired === true,
+    };
   },
 
   /**
@@ -152,6 +166,23 @@ export const authApi = {
     newPassword: string,
   ): Promise<void> => {
     await http.patch('/users/me/password', { currentPassword, newPassword });
+  },
+
+  /**
+   * `POST /auth/email/send-code` — otro código para confirmar el correo. El
+   * registro y el login ya envían uno; esto es "Pedir otro código". Responde
+   * 200 exista o no la cuenta.
+   */
+  sendEmailVerificationCode: async (email: string): Promise<void> => {
+    await http.post(`${AUTH}/email/send-code`, { email }, { ...skipAuthRefresh });
+  },
+
+  /**
+   * `POST /auth/email/verify` — confirma el correo con el código. No inicia
+   * sesión. Un código malo responde 400 y gasta uno de sus 5 intentos.
+   */
+  verifyEmail: async (email: string, code: string): Promise<void> => {
+    await http.post(`${AUTH}/email/verify`, { email, code }, { ...skipAuthRefresh });
   },
 
   /**

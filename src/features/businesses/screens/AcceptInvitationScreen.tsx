@@ -1,10 +1,11 @@
 /**
  * Canjear un código de invitación.
  *
- * Es el respaldo de la tarjeta de invitaciones recibidas: lo normal es que la
- * invitación aparezca sola al entrar, porque va dirigida al correo o teléfono
- * de la cuenta. El código sirve cuando la persona lo recibió por WhatsApp y
- * prefiere escribirlo, o cuando la invitación no le aparece.
+ * Toda invitación se acepta aquí, con su código: desde "Tengo un código" o
+ * desde "Aceptar" en la tarjeta de invitaciones recibidas (que pasa
+ * `business` para decir de qué negocio es). El backend exige el código
+ * porque el teléfono de una cuenta no se verifica: solo quien recibió el
+ * WhatsApp o el correo del negocio lo tiene.
  *
  * Una sola pantalla atiende los **dos** tipos, porque para quien lo recibe un
  * código es un código:
@@ -21,7 +22,7 @@
  * Solo la destinataria puede usarlo. Si la cuenta tiene otro teléfono o correo,
  * el backend responde 403 y se explica junto al campo.
  */
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
@@ -46,6 +47,7 @@ import {
 import { theme } from '@/theme';
 
 export const AcceptInvitationScreen = () => {
+  const { business } = useLocalSearchParams<{ business?: string }>();
   const finish = useFinishAcceptedInvitation();
   const dialog = useDialog();
 
@@ -131,11 +133,12 @@ export const AcceptInvitationScreen = () => {
 
       <IconBubble icon="ticket-outline" tone="brand" size={56} />
       <Text variant="title1" style={styles.title}>
-        Tengo un código
+        {business ? `Invitación de ${business}` : 'Tengo un código'}
       </Text>
       <Text variant="body" color="textMuted" style={styles.subtitle}>
-        Escribe el código que te compartieron para unirte a un negocio o para ver tu cuenta en
-        una tienda donde te fían. Tiene que ser para el celular o el correo de tu cuenta.
+        {business
+          ? `Escribe el código que ${business} te envió por WhatsApp o por correo. Así confirmamos que la invitación es para ti.`
+          : 'Escribe el código que te compartieron para unirte a un negocio o para ver tu cuenta en una tienda donde te fían. Tiene que ser para el celular o el correo de tu cuenta.'}
       </Text>
 
       <TextField
