@@ -28,6 +28,12 @@ export const routes = {
       (email
         ? { pathname: '/forgot-password', params: { email } }
         : '/forgot-password') as unknown as Href,
+    /**
+     * Confirmar el correo con el código. `from` dice a dónde volver: al login
+     * que lo pidió o, después del registro, al login nuevo.
+     */
+    verifyEmail: (email: string, from: 'register' | 'login'): Href =>
+      ({ pathname: '/verify-email', params: { email, from } }) as unknown as Href,
   },
 
   tabs: {
@@ -56,8 +62,14 @@ export const routes = {
   },
 
   invitation: {
-    /** Unirse a un negocio con un código. */
-    accept: '/invitation/accept' as Href,
+    /**
+     * Aceptar una invitación con su código. Con `business`, la pantalla dice
+     * de qué negocio es (viene de la tarjeta de invitaciones recibidas).
+     */
+    accept: (business?: string): Href =>
+      (business
+        ? { pathname: '/invitation/accept', params: { business } }
+        : '/invitation/accept') as unknown as Href,
   },
 
   client: {

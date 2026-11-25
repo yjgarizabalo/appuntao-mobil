@@ -4,24 +4,28 @@
  * `GET /invitations/incoming` devuelve las dirigidas al correo o teléfono de
  * su cuenta. Es lo que cierra el caso "desde cero": la tienda invita a un
  * número, la persona instala la app, se registra con ese número y al entrar
- * la invitación ya está aquí, sin teclear ningún código.
+ * la invitación ya está aquí.
+ *
+ * "Aceptar" lleva a escribir el código que le llegó por WhatsApp o correo: el
+ * backend lo exige, porque el teléfono de una cuenta no se verifica y otra
+ * persona podría haberse registrado con él.
  *
  * Aparece en Inicio (también sin negocios, que es donde cae alguien recién
  * registrado), en Mis negocios y en el modo cliente. Si no hay ninguna, no
  * ocupa espacio.
  */
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { routes } from '@/core/navigation/routes';
 import { formatLongDate } from '@/core/utils/format';
 import { BUSINESS_ROLE_LABEL } from '@/domain/constants';
 import type { Invitation } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { invitationApi } from '@/features/businesses/api/invitationApi';
-import { useFinishAcceptedInvitation } from '@/features/businesses/model/invitationFlow';
 import { Button, Card, Dialog, IconBubble, Text, useDialog, useToast } from '@/ui';
 import { theme } from '@/theme';
 
@@ -35,7 +39,6 @@ const headline = (invitation: Invitation): string => {
 
 export const IncomingInvitationsCard = () => {
   const { user } = useSession();
-  const finish = useFinishAcceptedInvitation();
   const dialog = useDialog();
   const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -57,32 +60,9 @@ export const IncomingInvitationsCard = () => {
     }, [incoming.refresh]),
   );
 
-  const accept = (invitation: Invitation) => {
-    const isClient = invitation.type === 'DEBTOR';
-    dialog.confirm({
-      tone: 'info',
-      title: isClient
-        ? `¿Ver tu cuenta en ${invitation.businessName ?? 'esta tienda'}?`
-        : `¿Unirte a ${invitation.businessName ?? 'este negocio'}?`,
-      message: isClient
-        ? 'Vas a ver lo que debes y tus abonos. La tienda sigue siendo quien registra los vales y los pagos.'
-        : 'Vas a tener acceso a sus clientes y sus vales según tu rol.',
-      confirmLabel: isClient ? 'Ver mi cuenta' : 'Unirme',
-      cancelLabel: 'Todavía no',
-      onConfirm: async () => {
-        setBusyId(invitation.id);
-        try {
-          const result = await invitationApi.acceptById(invitation.id);
-          await finish(result);
-        } catch (caught) {
-          dialog.showError(toAppError(caught));
-        } finally {
-          await incoming.reload();
-          setBusyId(null);
-        }
-      },
-    });
-  };
+  // La pantalla del código explica qué pasa al aceptar y pide confirmar.
+  const accept = (invitation: Invitation) =>
+    router.push(routes.invitation.accept(invitation.businessName ?? undefined));
 
   const reject = (invitation: Invitation) =>
     dialog.confirm({

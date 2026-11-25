@@ -55,6 +55,7 @@ import {
   type LoginCredentials,
   type LogoutOptions,
   type RegisterPayload,
+  type RegisterResult,
   authApi,
 } from '@/features/auth/api/authApi';
 import {
@@ -87,7 +88,7 @@ interface SessionContextValue {
   user: User | null;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials, options?: LoginOptions) => Promise<LoginOutcome>;
-  register: (payload: RegisterPayload) => Promise<User>;
+  register: (payload: RegisterPayload) => Promise<RegisterResult>;
   /**
    * Cierra sesión avisando al backend. Con `allDevices` cierra todas. No borra
    * el ingreso rápido: es justo para volver a entrar.

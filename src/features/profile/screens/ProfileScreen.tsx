@@ -422,7 +422,7 @@ export const ProfileScreen = () => {
             // Un mismo código sirve para las dos cosas: el backend distingue
             // entre invitación al equipo y vínculo como cliente por su `type`.
             description="Únete a un negocio o vincúlate a una tienda"
-            onPress={() => router.push(routes.invitation.accept)}
+            onPress={() => router.push(routes.invitation.accept())}
           />
         </Card>
 

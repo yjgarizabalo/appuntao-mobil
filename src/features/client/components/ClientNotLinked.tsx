@@ -79,7 +79,7 @@ export const ClientNotLinked = () => {
       <Button
         label="Tengo un código"
         icon="ticket-outline"
-        onPress={() => router.push(routes.invitation.accept)}
+        onPress={() => router.push(routes.invitation.accept())}
         size="lg"
         fullWidth
       />
