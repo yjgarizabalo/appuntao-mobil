@@ -52,6 +52,22 @@ export const routes = {
     /** Pasarle la propiedad del negocio a un miembro (solo el dueño). */
     transfer: (businessId: string): Href =>
       ({ pathname: '/business/transfer', params: { businessId } }) as unknown as Href,
+    /** Aceptar una propuesta para quedarse con un negocio (con los documentos para negocios). */
+    acceptTransfer: (transfer: {
+      id: string;
+      businessId: string;
+      businessName: string;
+      fromName: string;
+    }): Href =>
+      ({
+        pathname: '/business/accept-transfer',
+        params: {
+          transferId: transfer.id,
+          businessId: transfer.businessId,
+          businessName: transfer.businessName,
+          fromName: transfer.fromName,
+        },
+      }) as unknown as Href,
   },
 
   team: {

@@ -45,7 +45,7 @@ import {
   required,
 } from '@/core/utils/validation';
 import { DOCUMENT_TYPE_OPTIONS, type DocumentType } from '@/domain/constants';
-import { joinLegalTitles, type LegalDocument } from '@/domain/legal';
+import { joinLegalTitles, sameLegalDocuments } from '@/domain/legal';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { legalApi } from '@/features/legal/api/legalApi';
 import { LegalAcceptance } from '@/features/legal/components/LegalAcceptance';
@@ -167,7 +167,7 @@ export const RegisterScreen = () => {
         // es texto para personas y puede cambiar.
         if (error.code === 'VALIDATION' || error.status === 503) {
           const fresh = await legalApi.forRegistration().catch(() => null);
-          if (fresh && !sameDocuments(fresh, documents)) {
+          if (fresh && !sameLegalDocuments(fresh, documents)) {
             legal.setData(fresh);
             setAcceptedTerms(false);
             setTermsError(
@@ -353,10 +353,6 @@ export const RegisterScreen = () => {
     </Screen>
   );
 };
-
-/** Mismos documentos y mismas versiones (los ids cambian con cada versión). */
-const sameDocuments = (a: LegalDocument[], b: LegalDocument[]): boolean =>
-  a.length === b.length && a.every((doc) => b.some((other) => other.id === doc.id));
 
 const styles = StyleSheet.create({
   subtitle: {

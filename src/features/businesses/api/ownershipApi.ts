@@ -54,8 +54,15 @@ export const ownershipApi = {
     return mapOwnershipTransfers(data);
   },
 
-  accept: async (transferId: string): Promise<string> => {
-    const { data } = await http.post(`/business/ownership-transfers/${transferId}/accept`, {});
+  /**
+   * Quedarse con el negocio. Como al crearlo, se envían los ids de los
+   * documentos vigentes para negocios que aceptó (`legalApi.forBusiness`): el
+   * backend los exige si todavía no los había aceptado.
+   */
+  accept: async (transferId: string, acceptedLegalDocumentIds: string[]): Promise<string> => {
+    const { data } = await http.post(`/business/ownership-transfers/${transferId}/accept`, {
+      acceptedLegalDocumentIds,
+    });
     return String(data?.message ?? '');
   },
 

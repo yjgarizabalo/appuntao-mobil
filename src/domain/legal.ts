@@ -83,6 +83,16 @@ export const joinLegalTitles = (documents: readonly LegalDocumentSummary[]): str
     : `${titles.slice(0, -1).join(', ')} y ${titles[titles.length - 1]}`;
 };
 
+/**
+ * Mismos documentos y mismas versiones (los ids cambian con cada versión).
+ * Sirve para saber si el backend rechazó porque se publicó una versión nueva
+ * mientras el usuario llenaba el formulario.
+ */
+export const sameLegalDocuments = (
+  a: readonly LegalDocumentSummary[],
+  b: readonly LegalDocumentSummary[],
+): boolean => a.length === b.length && a.every((doc) => b.some((other) => other.id === doc.id));
+
 /* ── Documento interpretado para pintar ──────────────────────────────────── */
 
 /** Un bloque dentro de una cláusula: párrafo corrido o lista de viñetas. */

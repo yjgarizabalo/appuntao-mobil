@@ -26,7 +26,7 @@ import { haptics } from '@/core/haptics';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
 import { useForm } from '@/core/hooks/useForm';
 import { minLength, required } from '@/core/utils/validation';
-import { joinLegalTitles, type LegalDocument } from '@/domain/legal';
+import { joinLegalTitles, sameLegalDocuments } from '@/domain/legal';
 import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
 import { legalApi } from '@/features/legal/api/legalApi';
 import { LegalAcceptance } from '@/features/legal/components/LegalAcceptance';
@@ -92,7 +92,7 @@ export const AddBusinessScreen = () => {
         // compara contra el backend, no contra el texto del error.
         if (error.code === 'VALIDATION' || error.status === 503) {
           const fresh = await legalApi.forBusiness().catch(() => null);
-          if (fresh && !sameDocuments(fresh, documents)) {
+          if (fresh && !sameLegalDocuments(fresh, documents)) {
             legal.setData(fresh);
             setAcceptedLegal(false);
             setLegalError(
@@ -184,10 +184,6 @@ export const AddBusinessScreen = () => {
     </Screen>
   );
 };
-
-/** Mismos documentos y mismas versiones (los ids cambian con cada versión). */
-const sameDocuments = (a: LegalDocument[], b: LegalDocument[]): boolean =>
-  a.length === b.length && a.every((doc) => b.some((other) => other.id === doc.id));
 
 const styles = StyleSheet.create({
   title: {
