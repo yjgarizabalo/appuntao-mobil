@@ -5,28 +5,26 @@
  * (`GET /business/ownership-transfers/incoming`); si no, no ocupa espacio.
  *
  * Aceptar convierte al usuario en dueño: responde por el negocio y por los
- * datos de sus clientes. Por eso se confirma, y después se vuelve a consultar
- * la puerta legal: al ser dueño le toca aceptar los documentos para negocios.
+ * datos de sus clientes. Por eso "Aceptar" lleva a una pantalla propia
+ * (`AcceptTransferScreen`) donde lee y acepta los documentos para negocios,
+ * que el backend exige.
  */
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { toAppError } from '@/core/errors/AppError';
 import { useAsyncData } from '@/core/hooks/useAsyncData';
+import { routes } from '@/core/navigation/routes';
 import { formatLongDate } from '@/core/utils/format';
 import type { OwnershipTransfer } from '@/domain/models';
 import { useSession } from '@/features/auth/session/SessionProvider';
 import { ownershipApi } from '@/features/businesses/api/ownershipApi';
-import { useBusinesses } from '@/features/businesses/state/BusinessProvider';
-import { useLegalGate } from '@/features/legal/components/LegalGate';
 import { Button, Card, Dialog, IconBubble, Text, useDialog, useToast } from '@/ui';
 import { theme } from '@/theme';
 
 export const IncomingTransfersCard = () => {
   const { user } = useSession();
-  const { refresh: refreshBusinesses, selectBusiness } = useBusinesses();
-  const { recheck } = useLegalGate();
   const dialog = useDialog();
   const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -49,30 +47,7 @@ export const IncomingTransfersCard = () => {
   );
 
   const accept = (transfer: OwnershipTransfer) =>
-    dialog.confirm({
-      tone: 'info',
-      title: `¿Quedarte con ${transfer.businessName}?`,
-      message:
-        'Serás el dueño: responderás por el negocio y por los datos de sus clientes. Quien te lo pasa quedará como administrador.',
-      confirmLabel: 'Aceptar',
-      cancelLabel: 'Todavía no',
-      onConfirm: async () => {
-        setBusyId(transfer.id);
-        try {
-          const message = await ownershipApi.accept(transfer.id);
-          toast.success(message || `Ahora eres el dueño de ${transfer.businessName}`);
-          await refreshBusinesses();
-          selectBusiness(transfer.businessId);
-          await incoming.reload();
-          await recheck();
-        } catch (caught) {
-          dialog.showError(toAppError(caught));
-          await incoming.reload();
-        } finally {
-          setBusyId(null);
-        }
-      },
-    });
+    router.push(routes.business.acceptTransfer(transfer));
 
   const reject = (transfer: OwnershipTransfer) =>
     dialog.confirm({
